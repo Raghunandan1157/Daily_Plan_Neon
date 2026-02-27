@@ -439,9 +439,14 @@ function getDMDistricts() {
     return Array.from(districts);
 }
 
-// Get branches assigned to the current DM
+// Get branches assigned to the current DM (cached for performance)
+let _dmBranchesCache = null;
+let _dmBranchesCacheUser = null;
 function getDMBranches() {
     if (!state.currentUser || !state.rawData) return [];
+    // Return cached result if same user
+    if (_dmBranchesCache && _dmBranchesCacheUser === state.currentUser) return _dmBranchesCache;
+
     const idxDM = state.rawData.headers.findIndex(h => h.trim().toLowerCase() === 'dm name');
     const idxBranch = state.rawData.headers.findIndex(h => h.trim().toLowerCase() === 'branch');
 
@@ -453,6 +458,8 @@ function getDMBranches() {
             branches.push(r[idxBranch]);
         }
     });
+    _dmBranchesCache = branches;
+    _dmBranchesCacheUser = state.currentUser;
     return branches;
 }
 
@@ -899,8 +906,17 @@ function navigateDatePicker(delta) {
 // Fetch data for a date range (aggregates multiple days)
 // Core fetch and aggregate logic - Reusable
 async function fetchAndAggregateData(fromDate, toDate) {
-    const p1 = supabaseClient.from('daily_reports').select('*').gte('date', fromDate).lte('date', toDate);
-    const p2 = supabaseClient.from('daily_reports_achievements').select('*').gte('date', fromDate).lte('date', toDate);
+    let p1 = supabaseClient.from('daily_reports').select('*').gte('date', fromDate).lte('date', toDate);
+    let p2 = supabaseClient.from('daily_reports_achievements').select('*').gte('date', fromDate).lte('date', toDate);
+
+    // DM optimization: only fetch branches assigned to this DM
+    if (state.role === 'DM') {
+        const dmBranches = getDMBranches();
+        if (dmBranches.length > 0) {
+            p1 = p1.in('branch_name', dmBranches);
+            p2 = p2.in('branch_name', dmBranches);
+        }
+    }
 
     const [resPlan, resAchieve] = await Promise.all([p1, p2]);
 
@@ -1099,7 +1115,7 @@ function mergeAchievementsWithPlan(branchDetails) {
 }
 
 // --- SUPABASE ACTIONS ---
-async function fetchSupabaseData(retryCount = 0) {
+async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     const MAX_RETRIES = 3;
     const targetDate = state.systemDate;
     console.log("fetchSupabaseData: Starting for date " + targetDate + (retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''));
@@ -1109,15 +1125,26 @@ async function fetchSupabaseData(retryCount = 0) {
     try {
         // Parallel Fetch with timeout for reliability
         let timeoutId;
+        const timeoutMs = state.role === 'DM' ? 15000 : 30000; // DM fetches less data, shorter timeout
         const timeout = new Promise((_, reject) =>
             timeoutId = setTimeout(() => {
                 console.error("fetchSupabaseData: Timeout triggered");
                 reject(new Error('Request timeout'));
-            }, 30000) // 30s timeout (increased for slow connections)
+            }, timeoutMs)
         );
 
-        const p1 = supabaseClient.from('daily_reports').select('*').eq('date', targetDate);
-        const p2 = supabaseClient.from('daily_reports_achievements').select('*').eq('date', targetDate);
+        // DM optimization: only fetch branches assigned to this DM
+        let p1 = supabaseClient.from('daily_reports').select('*').eq('date', targetDate);
+        let p2 = supabaseClient.from('daily_reports_achievements').select('*').eq('date', targetDate);
+
+        if (state.role === 'DM') {
+            const dmBranches = getDMBranches();
+            if (dmBranches.length > 0) {
+                p1 = p1.in('branch_name', dmBranches);
+                p2 = p2.in('branch_name', dmBranches);
+                console.log(`fetchSupabaseData: DM filter applied, fetching ${dmBranches.length} branches`);
+            }
+        }
 
         console.log("fetchSupabaseData: Awaiting Promise.race");
         const [resPlan, resAchieve] = await Promise.race([
@@ -1136,7 +1163,7 @@ async function fetchSupabaseData(retryCount = 0) {
                 console.warn(`Fetch network error, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
                 clearTimeout(timeoutId);
                 await new Promise(resolve => setTimeout(resolve, delay));
-                return fetchSupabaseData(retryCount + 1);
+                return fetchSupabaseData(retryCount + 1, skipRender);
             }
 
             console.error("Supabase Load Error:", errorMsg);
@@ -1166,8 +1193,10 @@ async function fetchSupabaseData(retryCount = 0) {
         const achieveCount = resAchieve.data?.length || 0;
         console.log(`fetchSupabaseData: Processed ${targetCount} plans, ${achieveCount} achievements`);
 
-        renderDashboard();
-        console.log("fetchSupabaseData: renderDashboard completed");
+        if (!skipRender) {
+            renderDashboard();
+            console.log("fetchSupabaseData: renderDashboard completed");
+        }
     } catch (err) {
         console.error("Fetch Error:", err);
 
@@ -1183,7 +1212,7 @@ async function fetchSupabaseData(retryCount = 0) {
             console.warn(`Fetch timeout, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
             showToast(`Connection slow, retrying... (${retryCount + 1}/${MAX_RETRIES})`, 'warning');
             await new Promise(resolve => setTimeout(resolve, delay));
-            return fetchSupabaseData(retryCount + 1);
+            return fetchSupabaseData(retryCount + 1, skipRender);
         }
 
         showToast('Connection error. Please check your network and try again.', 'alert');
@@ -1252,12 +1281,17 @@ function setupRealtime() {
 
     const dateFilter = state.systemDate;
 
+    // DM optimization: only process realtime updates for DM's own branches
+    const dmBranchSet = (state.role === 'DM') ? new Set(getDMBranches()) : null;
+
     // Channel for Plans
     const targetChannel = supabaseClient
         .channel('public:daily_reports')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, payload => {
             const newData = payload.new;
             if (newData && newData.date === state.systemDate) {
+                // DM: ignore updates for branches not assigned to this DM
+                if (dmBranchSet && !dmBranchSet.has(newData.branch_name)) return;
                 // Merge into existing state
                 if (!state.branchDetails[newData.branch_name]) state.branchDetails[newData.branch_name] = {};
                 state.branchDetails[newData.branch_name].target = newData;
@@ -1278,6 +1312,8 @@ function setupRealtime() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports_achievements' }, payload => {
             const newData = payload.new;
             if (newData && newData.date === state.systemDate) {
+                // DM: ignore updates for branches not assigned to this DM
+                if (dmBranchSet && !dmBranchSet.has(newData.branch_name)) return;
                 // Merge into existing state
                 if (!state.branchDetails[newData.branch_name]) state.branchDetails[newData.branch_name] = {};
                 state.branchDetails[newData.branch_name].achievement = newData;
@@ -1525,8 +1561,8 @@ async function selectSystemDate(offset) {
 
     state.systemDate = isoDate;
 
-    // Fetch Data for this Date
-    await fetchSupabaseData();
+    // Fetch Data for this Date (skip render — loadAppUI will trigger it)
+    await fetchSupabaseData(0, true);
 
     // Update Header Display
     updateHeaderDate(isoDate);
