@@ -11,7 +11,6 @@ async function neonQuery(sql, params = []) {
     const response = await fetch(NEON_SQL_URL, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
             'Neon-Connection-String': NEON_CONN_STRING
         },
         body: JSON.stringify({ query: sql, params })
