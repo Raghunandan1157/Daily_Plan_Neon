@@ -9,14 +9,14 @@
   <title>NLPL OrgPortal</title>
   <link rel="icon" href="logo.png" type="image/png">
   <!-- Preload critical resources so browser starts downloading early -->
-  <link rel="preload" href="script.min.js?v=6" as="script">
+  <link rel="preload" href="script.min.js?v=7" as="script">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.min.css">
+  <link rel="stylesheet" href="styles.min.css?v=7">
 </head>
 
 <body>
@@ -349,12 +349,18 @@
         </button>
       </div>
       <div class="modal-body">
+        <!-- MOBILE SECTION STEPPER (hidden on desktop) -->
+        <div class="mobile-stepper" id="mobileStepper">
+            <div class="stepper-progress-bar"><div class="stepper-progress-fill" id="stepperProgressFill"></div></div>
+            <div class="stepper-pills" id="stepperPills"></div>
+        </div>
+
         <!-- LEFT COLUMN -->
         <div class="left-panel">
 
           <!-- Row 1 -->
-          <div class="grid-2-col">
-            <div class="form-section">
+          <div class="grid-2-col" data-section-group="row1">
+            <div class="form-section" data-section="section-ftod">
               <div class="form-section-title">FTOD - ACCOUNTS</div>
               <div class="form-row">
                 <label class="form-label">Actual FTOD Account</label>
@@ -367,7 +373,7 @@
               </div>
             </div>
 
-            <div class="form-section">
+            <div class="form-section" data-section="section-slipped">
               <div class="form-section-title" id="slippedSectionTitle">NOV-25 SLIPPED ACCOUNT</div>
               <div class="form-row">
                 <label class="form-label">Actual Account</label>
@@ -382,8 +388,8 @@
           </div>
 
           <!-- Row 2 -->
-          <div class="grid-2-col">
-            <div class="form-section">
+          <div class="grid-2-col" data-section-group="row2">
+            <div class="form-section" data-section="section-pnpa">
               <div class="form-section-title">PNPA ACCOUNTS</div>
               <div class="form-row">
                 <label class="form-label">Actual PNPA Account</label>
@@ -396,7 +402,7 @@
               </div>
             </div>
 
-            <div class="form-section">
+            <div class="form-section" data-section="section-npa">
               <div class="form-section-title">NPA ACCOUNTS</div>
               <div class="form-row">
                 <label class="form-label">NPA ACTIVATION</label>
@@ -412,7 +418,7 @@
           </div>
 
           <!-- Row 3 -->
-          <div class="form-section">
+          <div class="form-section" data-section="section-fy">
             <div class="form-section-title" id="fySectionTitle">FY 2025-26 Accounts</div>
             <div class="grid-2-col">
               <div>
@@ -445,7 +451,7 @@
         <!-- RIGHT COLUMN -->
         <div class="right-panel">
 
-          <div class="form-section">
+          <div class="form-section" data-section="section-disb">
             <div class="form-section-title" style="text-align:left; display:flex; align-items:center; gap:8px;">
               <input type="checkbox" checked disabled> <span id="lbl_disb">Disbursement Targets</span>
             </div>
@@ -484,7 +490,7 @@
 
           </div>
 
-          <div class="form-section">
+          <div class="form-section" data-section="section-kyc">
             <div class="form-section-title" id="lbl_kyc">KYC SOURCING</div>
 
             <div class="form-row">
@@ -510,11 +516,11 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" style="width:auto;" onclick="closeBranchModal()">Cancel</button>
-        <button class="btn btn-primary" style="width:auto; background: #4B5563;" onclick="saveBranchDetails(false)">Save
-          & Close</button>
-        <button class="btn btn-primary" style="width:auto;" onclick="saveBranchDetails(true)">Save & Next Branch
-          →</button>
+        <button class="btn btn-outline footer-cancel" style="width:auto;" onclick="closeBranchModal()">Cancel</button>
+        <div class="footer-actions">
+          <button class="btn btn-primary footer-save" style="width:auto; background: #4B5563;" onclick="saveBranchDetails(false)">Save & Close</button>
+          <button class="btn btn-primary footer-next" style="width:auto;" onclick="saveBranchDetails(true)">Save & Next →</button>
+        </div>
       </div>
     </div>
   </div>
@@ -695,7 +701,7 @@
     </div>
   </div>
 
-  <script src="script.min.js?v=6"></script>
+  <script src="script.min.js?v=7"></script>
 </body>
 
 </html>
