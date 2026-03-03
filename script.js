@@ -12,12 +12,13 @@ if ('serviceWorker' in navigator) {
 const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_xSQzvTLo3kU2@ep-dry-block-a13q0qk6-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
 
 let _neonSql = null;
-async function neonQuery(sql, params = []) {
+async function neonQuery(sqlText, params = []) {
     if (!_neonSql) {
         const { neon } = await import('https://esm.sh/@neondatabase/serverless');
         _neonSql = neon(NEON_CONN_STRING);
     }
-    const rows = await _neonSql(sql, params);
+    // Use .query() for conventional parameterized SQL ($1, $2, ...)
+    const rows = await _neonSql.query(sqlText, params);
     return { data: Array.isArray(rows) ? rows : [], error: null, count: Array.isArray(rows) ? rows.length : 0 };
 }
 
