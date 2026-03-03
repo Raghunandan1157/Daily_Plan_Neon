@@ -1,6 +1,11 @@
 // --- SERVICE WORKER ---
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Unregister any old/broken service workers first, then register fresh
+    navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+    }).finally(() => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+    });
 }
 
 // --- NEON SQL-over-HTTP CONFIG ---
@@ -1563,12 +1568,14 @@ async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
     const columns = Object.keys(payload);
     const values = Object.values(payload);
     const placeholders = columns.map((_, i) => `$${i + 1}`);
+    // Quote column names to preserve mixed-case (e.g. nov_25_Slipped_Accounts_Actual)
+    const q = c => `"${c}"`;
     const updateSet = columns
         .filter(c => c !== 'date' && c !== 'branch_name')
-        .map(c => `${c} = EXCLUDED.${c}`)
+        .map(c => `${q(c)} = EXCLUDED.${q(c)}`)
         .join(', ');
 
-    const sql = `INSERT INTO ${table} (${columns.join(', ')})
+    const sql = `INSERT INTO ${table} (${columns.map(q).join(', ')})
 VALUES (${placeholders.join(', ')})
 ON CONFLICT (date, branch_name) DO UPDATE SET ${updateSet}
 RETURNING *`;
