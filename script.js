@@ -8,26 +8,17 @@ if ('serviceWorker' in navigator) {
     caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
-// --- NEON SQL-over-HTTP CONFIG ---
-const NEON_SQL_URL = 'https://ep-dry-block-a13q0qk6.ap-southeast-1.aws.neon.tech/sql';
+// --- NEON CONFIG (using official @neondatabase/serverless driver) ---
 const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_xSQzvTLo3kU2@ep-dry-block-a13q0qk6-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
 
+let _neonSql = null;
 async function neonQuery(sql, params = []) {
-    const response = await fetch(NEON_SQL_URL, {
-        method: 'POST',
-        headers: {
-            'Neon-Connection-String': NEON_CONN_STRING
-        },
-        body: JSON.stringify({ query: sql, params })
-    });
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || `Neon query failed: ${response.status}`);
+    if (!_neonSql) {
+        const { neon } = await import('https://esm.sh/@neondatabase/serverless');
+        _neonSql = neon(NEON_CONN_STRING);
     }
-    const result = await response.json();
-    // Neon returns rows as objects when rowAsArray is false (default)
-    const rows = result.rows || [];
-    return { data: rows, error: null, count: result.rowCount };
+    const rows = await _neonSql(sql, params);
+    return { data: Array.isArray(rows) ? rows : [], error: null, count: Array.isArray(rows) ? rows.length : 0 };
 }
 
 // --- DATA CACHE (show last data instantly while fresh data loads) ---
