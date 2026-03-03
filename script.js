@@ -1,11 +1,11 @@
-// --- SERVICE WORKER ---
+// --- SERVICE WORKER CLEANUP ---
+// Unregister all old service workers and clear their caches
+// (SW was causing stale file issues on GitHub Pages subdirectory)
 if ('serviceWorker' in navigator) {
-    // Unregister any old/broken service workers first, then register fresh
     navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(r => r.unregister());
-    }).finally(() => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
     });
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
 // --- NEON SQL-over-HTTP CONFIG ---
