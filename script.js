@@ -1,6 +1,6 @@
 // --- SERVICE WORKER ---
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 // --- NEON SQL-over-HTTP CONFIG ---

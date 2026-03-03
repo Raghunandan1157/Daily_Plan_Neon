@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nlpl-v3';
+const CACHE_NAME = 'nlpl-v4';
 const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/script.min.js',
-    '/styles.min.css',
-    '/logo.png'
+    './',
+    'index.html',
+    'script.min.js',
+    'styles.min.css',
+    'logo.png'
 ];
 
 // Install: cache all static assets
