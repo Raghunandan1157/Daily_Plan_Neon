@@ -197,8 +197,8 @@ let state = {
     dateTo: null,   // Range End
     isDragging: false,
     dragStartDate: null,
-    _fetchController: null, // AbortController for in-flight fetchSupabaseData
-    _pollingInterval: null // Polling interval for data refresh (replaces Supabase realtime)
+    _fetchController: null, // AbortController for in-flight fetchData
+    _pollingInterval: null // Polling interval for data refresh (replaces Neon realtime)
 };
 
 // --- HELPER FUNCTIONS ---
@@ -378,7 +378,7 @@ function throttle(func, limit) {
 }
 
 // Debounced fetch for rapid date changes (date picker, arrow nav, quick buttons)
-const debouncedFetchSupabaseData = debounce(() => fetchSupabaseData(), 300);
+const debouncedFetchData = debounce(() => fetchData(), 300);
 
 // --- LOADING STATE MANAGEMENT ---
 function setLoading(isLoading, message = 'Loading...') {
@@ -900,7 +900,7 @@ async function applyDateRangeInternal(fromDate, toDate, label) {
 
     try {
         // Fetch data for date range (handles cache + network internally)
-        await fetchSupabaseDataRange(fromDate, toDate);
+        await fetchDataRange(fromDate, toDate);
 
         // Final render with fresh network data
         renderDashboard();
@@ -1072,10 +1072,10 @@ async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
 }
 
 // Fetch data for a date range (aggregates multiple days)
-async function fetchSupabaseDataRange(fromDate, toDate) {
+async function fetchDataRange(fromDate, toDate) {
     // DEDUPLICATION: Abort any in-flight fetch when a new range fetch starts
     if (state._fetchController) {
-        console.log("fetchSupabaseDataRange: Aborting previous in-flight request");
+        console.log("fetchDataRange: Aborting previous in-flight request");
         state._fetchController.abort();
     }
     state._fetchController = new AbortController();
@@ -1166,8 +1166,8 @@ function aggregateDataByBranch(rows) {
     return Object.values(byBranch);
 }
 
-// Merge achievement data with plan data when Supabase achievement rows miss values
-// IMPORTANT: Only merges when there is ACTUAL achievement data in Supabase, not empty objects
+// Merge achievement data with plan data when Neon achievement rows miss values
+// IMPORTANT: Only merges when there is ACTUAL achievement data in Neon, not empty objects
 // NOTE: Only merge fields that have DIFFERENT names between plan and achievement tables.
 // Fields with SAME names (npa_activation, npa_closure, disb_*, kyc_*) should NOT be merged
 // because they are independent values in both tables.
@@ -1215,9 +1215,9 @@ function mergeAchievementsWithPlan(branchDetails) {
         const plan = entry.target || {};
         const achievement = entry.achievement; // Don't default to empty object here!
 
-        // Only process if there is ACTUAL achievement data from Supabase
+        // Only process if there is ACTUAL achievement data from Neon
         // Check if entry.achievement exists and has at least one meaningful field 
-        // (e.g., id, branch_name from Supabase, or any non-null achievement field)
+        // (e.g., id, branch_name from Neon, or any non-null achievement field)
         const hasRealAchievementData = achievement && (
             achievement.id ||
             achievement.branch_name ||
@@ -1264,7 +1264,7 @@ function mergeAchievementsWithPlan(branchDetails) {
 }
 
 // --- SUPABASE ACTIONS ---
-async function fetchSupabaseData(retryCount = 0, skipRender = false) {
+async function fetchData(retryCount = 0, skipRender = false) {
     const MAX_RETRIES = 3;
     const targetDate = state.systemDate;
     const cacheKey = (state.role || 'CEO') + '_' + targetDate;
@@ -1272,20 +1272,20 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     // DEDUPLICATION: Abort any in-flight fetch when a new one starts (retryCount === 0 means fresh call)
     if (retryCount === 0) {
         if (state._fetchController) {
-            console.log("fetchSupabaseData: Aborting previous in-flight request");
+            console.log("fetchData: Aborting previous in-flight request");
             state._fetchController.abort();
         }
         state._fetchController = new AbortController();
     }
     const abortSignal = state._fetchController?.signal;
 
-    console.log("fetchSupabaseData: Starting for date " + targetDate + (retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''));
+    console.log("fetchData: Starting for date " + targetDate + (retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''));
 
     // Show cached data instantly while we fetch fresh data from network
     const hasCachedData = retryCount === 0 && !!getCachedData(cacheKey);
     if (retryCount === 0) {
         if (hasCachedData) {
-            console.log("fetchSupabaseData: Showing cached data for " + cacheKey);
+            console.log("fetchData: Showing cached data for " + cacheKey);
             state.branchDetails = getCachedData(cacheKey);
             if (!skipRender) renderDashboard();
             setLoading(false); // Don't block UI — user already sees data
@@ -1299,7 +1299,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     try {
         // Check if this request was already aborted (superseded by a newer call)
         if (abortSignal?.aborted) {
-            console.log("fetchSupabaseData: Aborted before fetch (superseded)");
+            console.log("fetchData: Aborted before fetch (superseded)");
             return;
         }
 
@@ -1310,7 +1310,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         const timeoutMs = isMobile ? 45000 : 30000; // 45s mobile, 30s desktop
         const timeout = new Promise((_, reject) =>
             timeoutId = setTimeout(() => {
-                console.error("fetchSupabaseData: Timeout triggered after " + timeoutMs + "ms");
+                console.error("fetchData: Timeout triggered after " + timeoutMs + "ms");
                 reject(new Error('Request timeout'));
             }, timeoutMs)
         );
@@ -1336,7 +1336,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
                 whereClauses.push(`branch_name = ANY($${paramIdx})`);
                 queryParams.push(dmBranches);
                 paramIdx++;
-                console.log(`fetchSupabaseData: DM filter applied, fetching ${dmBranches.length} branches`);
+                console.log(`fetchData: DM filter applied, fetching ${dmBranches.length} branches`);
             }
         }
 
@@ -1344,7 +1344,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         const p1 = neonQuery(`SELECT ${selectCols} FROM daily_reports${whereSQL}`, queryParams);
         const p2 = neonQuery(`SELECT ${selectCols} FROM daily_reports_achievements${whereSQL}`, queryParams);
 
-        console.log("fetchSupabaseData: Awaiting Promise.race");
+        console.log("fetchData: Awaiting Promise.race");
         const [resPlan, resAchieve] = await Promise.race([
             Promise.all([p1, p2]),
             timeout,
@@ -1354,11 +1354,11 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
 
         // Check abort after fetch completes (another call may have started during await)
         if (abortSignal?.aborted) {
-            console.log("fetchSupabaseData: Aborted after fetch (superseded)");
+            console.log("fetchData: Aborted after fetch (superseded)");
             return;
         }
 
-        console.log("fetchSupabaseData: Promise.race resolved", { resPlan, resAchieve });
+        console.log("fetchData: Promise.race resolved", { resPlan, resAchieve });
 
         if (resPlan.error || resAchieve.error) {
             const errorMsg = resPlan.error?.message || resAchieve.error?.message || 'Unknown error';
@@ -1366,7 +1366,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
 
             // If user already sees cached data, don't retry — just warn
             if (hasCachedData) {
-                console.warn('fetchSupabaseData: Network error but cache shown, skipping retries');
+                console.warn('fetchData: Network error but cache shown, skipping retries');
                 showToast('Showing cached data. Could not refresh from server.', 'warning');
                 return;
             }
@@ -1378,10 +1378,10 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
                 await new Promise(resolve => setTimeout(resolve, delay));
                 // Check abort before retrying
                 if (abortSignal?.aborted) return;
-                return fetchSupabaseData(retryCount + 1, skipRender);
+                return fetchData(retryCount + 1, skipRender);
             }
 
-            console.error("Supabase Load Error:", errorMsg);
+            console.error("Neon Load Error:", errorMsg);
             showToast('Failed to load data: ' + errorMsg, 'alert');
             return;
         }
@@ -1401,7 +1401,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
             state.branchDetails[row.branch_name].achievement = row;
         });
 
-        // Ensure achievement data is filled even if Supabase achievement rows are sparse
+        // Ensure achievement data is filled even if Neon achievement rows are sparse
         mergeAchievementsWithPlan(state.branchDetails);
 
         // Cache fresh data for instant load on next visit
@@ -1409,16 +1409,16 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
 
         const targetCount = resPlan.data?.length || 0;
         const achieveCount = resAchieve.data?.length || 0;
-        console.log(`fetchSupabaseData: Processed ${targetCount} plans, ${achieveCount} achievements`);
+        console.log(`fetchData: Processed ${targetCount} plans, ${achieveCount} achievements`);
 
         if (!skipRender) {
             renderDashboard();
-            console.log("fetchSupabaseData: renderDashboard completed");
+            console.log("fetchData: renderDashboard completed");
         }
     } catch (err) {
         // Silently ignore aborted requests — they were intentionally cancelled
         if (err.message?.includes('aborted') || err.message?.includes('superseded') || abortSignal?.aborted) {
-            console.log("fetchSupabaseData: Request was aborted (superseded by newer request)");
+            console.log("fetchData: Request was aborted (superseded by newer request)");
             return;
         }
 
@@ -1433,7 +1433,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         );
 
         if (hasCachedData) {
-            console.warn('fetchSupabaseData: Timeout but cache shown, skipping retries');
+            console.warn('fetchData: Timeout but cache shown, skipping retries');
             showToast('Showing cached data. Could not refresh from server.', 'warning');
             return;
         }
@@ -1445,12 +1445,12 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
             await new Promise(resolve => setTimeout(resolve, delay));
             // Check abort before retrying
             if (abortSignal?.aborted) return;
-            return fetchSupabaseData(retryCount + 1, skipRender);
+            return fetchData(retryCount + 1, skipRender);
         }
 
         showToast('Connection error. Please check your network and try again.', 'alert');
     } finally {
-        console.log("fetchSupabaseData: Entering finally, calling setLoading(false)");
+        console.log("fetchData: Entering finally, calling setLoading(false)");
         setLoading(false);
     }
 }
@@ -1507,17 +1507,17 @@ function setupRealtime() {
     // Clean up existing polling first
     cleanupRealtimeSubscriptions();
 
-    // Poll for updates every 30 seconds (replaces Supabase realtime)
+    // Poll for updates every 30 seconds (replaces Neon realtime)
     state._pollingInterval = setInterval(async () => {
         try {
-            await fetchSupabaseData(0, false);
+            await fetchData(0, false);
         } catch (err) {
             console.warn('Polling refresh error:', err);
         }
     }, 30000);
 }
 
-async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
+async function saveData(branchName, branchData, table, retryCount = 0) {
     const MAX_RETRIES = 3;
     const dateToSave = state.systemDate; // Expected YYYY-MM-DD
 
@@ -1598,7 +1598,7 @@ RETURNING *`;
                 console.warn(`Save timeout for ${branchName}, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
                 showToast(`Connection slow, retrying... (${retryCount + 1}/${MAX_RETRIES})`, 'warning');
                 await new Promise(resolve => setTimeout(resolve, delay));
-                return saveToSupabase(branchName, branchData, table, retryCount + 1);
+                return saveData(branchName, branchData, table, retryCount + 1);
             }
 
             console.error("Save Error:", result.error);
@@ -1623,7 +1623,7 @@ RETURNING *`;
             console.warn(`Save network error for ${branchName}, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
             showToast(`Connection slow, retrying... (${retryCount + 1}/${MAX_RETRIES})`, 'warning');
             await new Promise(resolve => setTimeout(resolve, delay));
-            return saveToSupabase(branchName, branchData, table, retryCount + 1);
+            return saveData(branchName, branchData, table, retryCount + 1);
         }
 
         console.error("Save Error:", err);
@@ -1702,11 +1702,11 @@ async function autoLoginCEO() {
 
     // Fetch Data for today
     try {
-        console.log("autoLoginCEO: Calling fetchSupabaseData");
-        await fetchSupabaseData();
-        console.log("autoLoginCEO: fetchSupabaseData returned");
+        console.log("autoLoginCEO: Calling fetchData");
+        await fetchData();
+        console.log("autoLoginCEO: fetchData returned");
     } catch (e) {
-        console.error("autoLoginCEO: fetchSupabaseData threw", e);
+        console.error("autoLoginCEO: fetchData threw", e);
     }
 
     // Update Header Display
@@ -1765,7 +1765,7 @@ async function selectSystemDate(offset) {
     state.systemDate = isoDate;
 
     // Fetch Data for this Date (skip render — loadAppUI will trigger it)
-    await fetchSupabaseData(0, true);
+    await fetchData(0, true);
 
     // Update Header Display
     updateHeaderDate(isoDate);
@@ -2075,7 +2075,7 @@ function renderReports(buffer) {
                             </div>
                             <div style="width:1px; height:24px; background:var(--border-color); margin:0 8px;"></div>
                             <input type="date" id="reportDateInput" value="${state.systemDate}"
-                                onchange="state.systemDate = this.value; updateHeaderDate(this.value); debouncedFetchSupabaseData();"
+                                onchange="state.systemDate = this.value; updateHeaderDate(this.value); debouncedFetchData();"
                                 style="padding:8px; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-body); color:var(--text-primary);">
                         </div>
                     </div>
@@ -2212,7 +2212,7 @@ function setReportDate(offset) {
     // Refresh UI to reflect date change (highlight button etc - optional)
     // Ideally we might want to re-fetch data if it wasn't pre-loaded, but for now we assume data changes with date
     // Trigger data refresh if needed:
-    debouncedFetchSupabaseData(); // Re-fetch for the new date (debounced to prevent rapid-fire)
+    debouncedFetchData(); // Re-fetch for the new date (debounced to prevent rapid-fire)
 }
 
 // --- COLOR HELPER FOR REPORTS ---
@@ -3468,7 +3468,7 @@ async function downloadAchievementPlanReportDirectly() {
     }
 
     // 3. Confirm with user via Toast or just proceed?
-    // Requirement says: "Query Supabase for ALL rows between startDate and endDate"
+    // Requirement says: "Query Neon for ALL rows between startDate and endDate"
     // "Add loading state"
 
     const label = formatRangeLabel(fromDate, toDate);
@@ -4499,7 +4499,7 @@ async function redirectToYesterdayAchievement() {
 
     // Show loading and fetch yesterday's data
     setLoading(true);
-    await fetchSupabaseData();
+    await fetchData();
     setLoading(false);
 
     // Open branch modal - will show ACHIEVEMENT mode since yesterday has plan but no achievement
@@ -4759,7 +4759,7 @@ async function openBranchModal(branchName) {
         btn.style.fontSize = "10px";
         btn.style.padding = "4px 8px";
         btn.innerText = "Test Connection";
-        btn.onclick = testSupabaseConnection;
+        btn.onclick = testConnection;
         // Prepend to footer or right panel? Footer is best
         footer.insertBefore(btn, footer.firstChild);
     }
@@ -4856,7 +4856,7 @@ async function saveBranchDetails(andNext) {
         const el = document.getElementById(id);
         if (el) {
             // No longer requiring all fields - allow empty values
-            // Empty values will be sent as empty string and converted to null/0 by saveToSupabase
+            // Empty values will be sent as empty string and converted to null/0 by saveData
             // Strip commas from formatted numbers before saving
             data[id] = unformatNumber(el.value);
         }
@@ -4871,10 +4871,10 @@ async function saveBranchDetails(andNext) {
     const table = saveMode === 'TARGET' ? 'daily_reports' : 'daily_reports_achievements';
 
     // Persist
-    const result = await saveToSupabase(currentEditingBranch, data, table);
+    const result = await saveData(currentEditingBranch, data, table);
 
     if (!result || !result.success) {
-        // Toast already shown in saveToSupabase
+        // Toast already shown in saveData
         return;
     }
 
@@ -4908,7 +4908,7 @@ async function saveBranchDetails(andNext) {
     }
 }
 
-async function testSupabaseConnection() {
+async function testConnection() {
     showToast("Testing connection...", "info");
     try {
         await neonQuery('SELECT 1');
