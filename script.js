@@ -865,14 +865,17 @@ async function applyDateRangeInternal(fromDate, toDate, label) {
     // Update header
     document.getElementById('headerDate').textContent = label;
 
-    // Show loading
-    setLoading(true, `Loading data for ${label}...`);
+    // Only show full loading if no cache available
+    const cacheKey = (state.role || 'CEO') + '_range_' + fromDate + '_' + toDate;
+    if (!getCachedData(cacheKey)) {
+        setLoading(true, `Loading data for ${label}...`);
+    }
 
     try {
-        // Fetch data for date range
+        // Fetch data for date range (handles cache + network internally)
         await fetchSupabaseDataRange(fromDate, toDate);
 
-        // Re-render dashboard
+        // Final render with fresh network data
         renderDashboard();
 
         // Show toast
@@ -937,8 +940,17 @@ function navigateDatePicker(delta) {
 async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
     const MAX_RETRIES = 3;
     const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,nov_25_Slipped_Accounts_Actual,nov_25_Slipped_Accounts_Plan,pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
-    let p1 = supabaseClient.from('daily_reports').select(selectCols).gte('date', fromDate).lte('date', toDate);
-    let p2 = supabaseClient.from('daily_reports_achievements').select(selectCols).gte('date', fromDate).lte('date', toDate);
+    // Use .eq() for single-date queries (faster than .gte().lte() range)
+    const isSingleDate = fromDate === toDate;
+    let p1 = supabaseClient.from('daily_reports').select(selectCols);
+    let p2 = supabaseClient.from('daily_reports_achievements').select(selectCols);
+    if (isSingleDate) {
+        p1 = p1.eq('date', fromDate);
+        p2 = p2.eq('date', fromDate);
+    } else {
+        p1 = p1.gte('date', fromDate).lte('date', toDate);
+        p2 = p2.gte('date', fromDate).lte('date', toDate);
+    }
 
     // DM optimization: only fetch branches assigned to this DM
     if (state.role === 'DM') {
@@ -1020,13 +1032,29 @@ async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
 
 // Fetch data for a date range (aggregates multiple days)
 async function fetchSupabaseDataRange(fromDate, toDate) {
+    const cacheKey = (state.role || 'CEO') + '_range_' + fromDate + '_' + toDate;
+
+    // Show cached data instantly (stale-while-revalidate)
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+        state.branchDetails = cached;
+        renderDashboard();
+        setLoading(true, 'Refreshing...');
+    }
+
     try {
         const branchDetails = await fetchAndAggregateData(fromDate, toDate);
         state.branchDetails = branchDetails;
+        setCachedData(cacheKey, branchDetails);
         setLoading(false);
     } catch (error) {
         console.error('Fetch range error:', error);
         setLoading(false);
+        // If we showed cached data, don't re-throw — user already sees data
+        if (cached) {
+            showToast('Using cached data — refresh failed', 'warning');
+            return;
+        }
         throw error;
     }
 }
