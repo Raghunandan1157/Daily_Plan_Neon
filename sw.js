@@ -29,8 +29,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Supabase API calls — always go to network (data must be fresh)
-    if (url.hostname.includes('supabase')) return;
+    // Neon API calls — always go to network (data must be fresh)
+    if (url.hostname.includes('neon.tech')) return;
 
     // Static assets (same origin) — cache-first, update in background
     if (url.origin === self.location.origin) {

@@ -3,10 +3,28 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
-// --- SUPABASE CONFIG ---
-const SUPABASE_URL = 'https://zovnmmdfthpbubrorsgh.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpvdm5tbWRmdGhwYnVicm9yc2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NzE3ODgsImV4cCI6MjA3NzE0Nzc4OH0.92BH2sjUOgkw6iSRj1_4gt0p3eThg3QT4VK-Q4EdmBE';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// --- NEON SQL-over-HTTP CONFIG ---
+const NEON_SQL_URL = 'https://ep-dry-block-a13q0qk6.ap-southeast-1.aws.neon.tech/sql';
+const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_xSQzvTLo3kU2@ep-dry-block-a13q0qk6-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+
+async function neonQuery(sql, params = []) {
+    const response = await fetch(NEON_SQL_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Neon-Connection-String': NEON_CONN_STRING
+        },
+        body: JSON.stringify({ query: sql, params })
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || `Neon query failed: ${response.status}`);
+    }
+    const result = await response.json();
+    // Neon returns rows as objects when rowAsArray is false (default)
+    const rows = result.rows || [];
+    return { data: rows, error: null, count: result.rowCount };
+}
 
 // --- DATA CACHE (show last data instantly while fresh data loads) ---
 function getCachedData(key) {
@@ -175,7 +193,8 @@ let state = {
     dateTo: null,   // Range End
     isDragging: false,
     dragStartDate: null,
-    _fetchController: null // AbortController for in-flight fetchSupabaseData
+    _fetchController: null, // AbortController for in-flight fetchSupabaseData
+    _pollingInterval: null // Polling interval for data refresh (replaces Supabase realtime)
 };
 
 // --- HELPER FUNCTIONS ---
@@ -943,39 +962,52 @@ function navigateDatePicker(delta) {
 // Core fetch and aggregate logic - Reusable
 async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
     const MAX_RETRIES = 3;
-    const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,nov_25_Slipped_Accounts_Actual,nov_25_Slipped_Accounts_Plan,pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
-    // Use .eq() for single-date queries (faster than .gte().lte() range)
+    const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,"nov_25_Slipped_Accounts_Actual","nov_25_Slipped_Accounts_Plan",pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
     const isSingleDate = fromDate === toDate;
-    let p1 = supabaseClient.from('daily_reports').select(selectCols);
-    let p2 = supabaseClient.from('daily_reports_achievements').select(selectCols);
+
+    // Build SQL query with parameterized WHERE clause
+    let whereClauses = [];
+    let params = [];
+    let paramIdx = 1;
+
     if (isSingleDate) {
-        p1 = p1.eq('date', fromDate);
-        p2 = p2.eq('date', fromDate);
+        whereClauses.push(`date = $${paramIdx}`);
+        params.push(fromDate);
+        paramIdx++;
     } else {
-        p1 = p1.gte('date', fromDate).lte('date', toDate);
-        p2 = p2.gte('date', fromDate).lte('date', toDate);
+        whereClauses.push(`date >= $${paramIdx}`);
+        params.push(fromDate);
+        paramIdx++;
+        whereClauses.push(`date <= $${paramIdx}`);
+        params.push(toDate);
+        paramIdx++;
     }
 
     // DM optimization: only fetch branches assigned to this DM
     if (state.role === 'DM') {
         const dmBranches = getDMBranches();
         if (dmBranches.length > 0) {
-            p1 = p1.in('branch_name', dmBranches);
-            p2 = p2.in('branch_name', dmBranches);
+            whereClauses.push(`branch_name = ANY($${paramIdx})`);
+            params.push(dmBranches);
+            paramIdx++;
         }
     }
+
+    const whereSQL = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
+    const sqlPlan = `SELECT ${selectCols} FROM daily_reports${whereSQL}`;
+    const sqlAchieve = `SELECT ${selectCols} FROM daily_reports_achievements${whereSQL}`;
 
     // Add timeout protection (mobile networks need longer)
     let timeoutId;
     const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
-    const timeoutMs = isMobile ? 60000 : 45000; // Range queries fetch more data, allow extra time
+    const timeoutMs = isMobile ? 60000 : 45000;
     const timeoutPromise = new Promise((_, reject) =>
         timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
     );
 
     try {
         const [resPlan, resAchieve] = await Promise.race([
-            Promise.all([p1, p2]),
+            Promise.all([neonQuery(sqlPlan, params), neonQuery(sqlAchieve, params)]),
             timeoutPromise
         ]);
         clearTimeout(timeoutId);
@@ -1289,18 +1321,24 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         });
 
         // DM optimization: only fetch branches assigned to this DM
-        const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,nov_25_Slipped_Accounts_Actual,nov_25_Slipped_Accounts_Plan,pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
-        let p1 = supabaseClient.from('daily_reports').select(selectCols).eq('date', targetDate);
-        let p2 = supabaseClient.from('daily_reports_achievements').select(selectCols).eq('date', targetDate);
+        const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,"nov_25_Slipped_Accounts_Actual","nov_25_Slipped_Accounts_Plan",pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
+        let whereClauses = ['date = $1'];
+        let queryParams = [targetDate];
+        let paramIdx = 2;
 
         if (state.role === 'DM') {
             const dmBranches = getDMBranches();
             if (dmBranches.length > 0) {
-                p1 = p1.in('branch_name', dmBranches);
-                p2 = p2.in('branch_name', dmBranches);
+                whereClauses.push(`branch_name = ANY($${paramIdx})`);
+                queryParams.push(dmBranches);
+                paramIdx++;
                 console.log(`fetchSupabaseData: DM filter applied, fetching ${dmBranches.length} branches`);
             }
         }
+
+        const whereSQL = ' WHERE ' + whereClauses.join(' AND ');
+        const p1 = neonQuery(`SELECT ${selectCols} FROM daily_reports${whereSQL}`, queryParams);
+        const p2 = neonQuery(`SELECT ${selectCols} FROM daily_reports_achievements${whereSQL}`, queryParams);
 
         console.log("fetchSupabaseData: Awaiting Promise.race");
         const [resPlan, resAchieve] = await Promise.race([
@@ -1417,13 +1455,12 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
 async function checkYesterdayAchievementExists(branchName) {
     const yesterdayDate = getYesterdayISO();
     try {
-        const { count, error } = await supabaseClient
-            .from('daily_reports_achievements')
-            .select('*', { count: 'exact', head: true })
-            .eq('date', yesterdayDate)
-            .eq('branch_name', branchName);
-        if (error) return true; // Fail open
-        return count > 0;
+        const result = await neonQuery(
+            'SELECT COUNT(*)::int AS cnt FROM daily_reports_achievements WHERE date = $1 AND branch_name = $2',
+            [yesterdayDate, branchName]
+        );
+        if (result.error) return true; // Fail open
+        return (result.data[0]?.cnt || 0) > 0;
     } catch (err) {
         return true; // Fail open
     }
@@ -1433,13 +1470,12 @@ async function checkYesterdayAchievementExists(branchName) {
 async function checkYesterdayPlanExists(branchName) {
     const yesterdayDate = getYesterdayISO();
     try {
-        const { count, error } = await supabaseClient
-            .from('daily_reports')
-            .select('*', { count: 'exact', head: true })
-            .eq('date', yesterdayDate)
-            .eq('branch_name', branchName);
-        if (error) return false;
-        return count > 0;
+        const result = await neonQuery(
+            'SELECT COUNT(*)::int AS cnt FROM daily_reports WHERE date = $1 AND branch_name = $2',
+            [yesterdayDate, branchName]
+        );
+        if (result.error) return false;
+        return (result.data[0]?.cnt || 0) > 0;
     } catch (err) {
         return false;
     }
@@ -1455,69 +1491,26 @@ const throttledRender = throttle(() => {
 }, 500);
 
 function cleanupRealtimeSubscriptions() {
-    // Unsubscribe from all existing channels
-    state.realtimeChannels.forEach(channel => {
-        try {
-            supabaseClient.removeChannel(channel);
-        } catch (err) {
-            console.warn('Channel cleanup warning:', err);
-        }
-    });
+    // Clear polling interval
+    if (state._pollingInterval) {
+        clearInterval(state._pollingInterval);
+        state._pollingInterval = null;
+    }
     state.realtimeChannels = [];
 }
 
 function setupRealtime() {
-    // Clean up existing subscriptions first
+    // Clean up existing polling first
     cleanupRealtimeSubscriptions();
 
-    const dateFilter = state.systemDate;
-
-    // DM optimization: only process realtime updates for DM's own branches
-    const dmBranchSet = (state.role === 'DM') ? new Set(getDMBranches()) : null;
-
-    // Channel for Plans
-    const targetChannel = supabaseClient
-        .channel('public:daily_reports')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, payload => {
-            const newData = payload.new;
-            if (newData && newData.date === state.systemDate) {
-                // DM: ignore updates for branches not assigned to this DM
-                if (dmBranchSet && !dmBranchSet.has(newData.branch_name)) return;
-                // Merge into existing state
-                if (!state.branchDetails[newData.branch_name]) state.branchDetails[newData.branch_name] = {};
-                state.branchDetails[newData.branch_name].target = newData;
-                throttledRender();
-            }
-        })
-        .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR') {
-                console.error('Realtime subscription error for daily_reports');
-            }
-        });
-
-    state.realtimeChannels.push(targetChannel);
-
-    // Channel for Achievements
-    const achievementChannel = supabaseClient
-        .channel('public:daily_reports_achievements')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports_achievements' }, payload => {
-            const newData = payload.new;
-            if (newData && newData.date === state.systemDate) {
-                // DM: ignore updates for branches not assigned to this DM
-                if (dmBranchSet && !dmBranchSet.has(newData.branch_name)) return;
-                // Merge into existing state
-                if (!state.branchDetails[newData.branch_name]) state.branchDetails[newData.branch_name] = {};
-                state.branchDetails[newData.branch_name].achievement = newData;
-                throttledRender();
-            }
-        })
-        .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR') {
-                console.error('Realtime subscription error for daily_reports_achievements');
-            }
-        });
-
-    state.realtimeChannels.push(achievementChannel);
+    // Poll for updates every 30 seconds (replaces Supabase realtime)
+    state._pollingInterval = setInterval(async () => {
+        try {
+            await fetchSupabaseData(0, false);
+        } catch (err) {
+            console.warn('Polling refresh error:', err);
+        }
+    }, 30000);
 }
 
 async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
@@ -1568,41 +1561,50 @@ async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
         kyc_npa: toNum(branchData.kyc_npa)
     };
 
-    try {
-        const { data, error } = await supabaseClient
-            .from(table)
-            .upsert(payload, { onConflict: 'date,branch_name' })
-            .select();
+    const columns = Object.keys(payload);
+    const values = Object.values(payload);
+    const placeholders = columns.map((_, i) => `$${i + 1}`);
+    const updateSet = columns
+        .filter(c => c !== 'date' && c !== 'branch_name')
+        .map(c => `${c} = EXCLUDED.${c}`)
+        .join(', ');
 
-        if (error) {
-            // Check if it's a network/timeout error (retryable)
-            const isNetworkError = error.message && (
-                error.message.includes('Failed to fetch') ||
-                error.message.includes('Load failed') ||
-                error.message.includes('NetworkError') ||
-                error.message.includes('timeout') ||
-                error.message.includes('ERR_CONNECTION')
+    const sql = `INSERT INTO ${table} (${columns.join(', ')})
+VALUES (${placeholders.join(', ')})
+ON CONFLICT (date, branch_name) DO UPDATE SET ${updateSet}
+RETURNING *`;
+
+    try {
+        const result = await neonQuery(sql, values);
+
+        if (result.error) {
+            const errorMsg = result.error.message || String(result.error);
+            const isNetworkError = errorMsg && (
+                errorMsg.includes('Failed to fetch') ||
+                errorMsg.includes('Load failed') ||
+                errorMsg.includes('NetworkError') ||
+                errorMsg.includes('timeout') ||
+                errorMsg.includes('ERR_CONNECTION')
             );
 
             if (isNetworkError && retryCount < MAX_RETRIES) {
-                const delay = Math.min(2000 * Math.pow(2, retryCount), 10000); // 2s, 4s, 8s
+                const delay = Math.min(2000 * Math.pow(2, retryCount), 10000);
                 console.warn(`Save timeout for ${branchName}, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
                 showToast(`Connection slow, retrying... (${retryCount + 1}/${MAX_RETRIES})`, 'warning');
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return saveToSupabase(branchName, branchData, table, retryCount + 1);
             }
 
-            console.error("Supabase Save Error:", error);
+            console.error("Save Error:", result.error);
             if (isNetworkError) {
                 alert(`Save Failed: Network connection timed out after ${MAX_RETRIES} retries.\nPlease check your internet connection and try again.`);
             } else {
-                alert(`Save Failed: ${error.message}\nHint: Check RLS policies or column types.`);
+                alert(`Save Failed: ${errorMsg}\nHint: Check column types.`);
             }
-            return { success: false, error };
+            return { success: false, error: result.error };
         }
-        return { success: true, row: (data && data[0]) ? data[0] : payload };
+        return { success: true, row: (result.data && result.data[0]) ? result.data[0] : payload };
     } catch (err) {
-        // Catch network-level errors (e.g. Failed to fetch thrown as exception)
         const isNetworkError = err.message && (
             err.message.includes('Failed to fetch') ||
             err.message.includes('Load failed') ||
@@ -1618,7 +1620,7 @@ async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
             return saveToSupabase(branchName, branchData, table, retryCount + 1);
         }
 
-        console.error("Supabase Save Error:", err);
+        console.error("Save Error:", err);
         alert(`Save Failed: Network connection error.\nPlease check your internet connection and try again.`);
         return { success: false, error: err };
     }
@@ -4902,12 +4904,12 @@ async function saveBranchDetails(andNext) {
 
 async function testSupabaseConnection() {
     showToast("Testing connection...", "info");
-    const { data, error } = await supabaseClient.from('daily_reports').select('*').limit(1);
-    if (error) {
-        showToast("Connection Failed: " + error.message, "alert");
-        console.error("Supabase Test Error:", error);
-    } else {
+    try {
+        await neonQuery('SELECT 1');
         showToast("Connection Successful!", "check");
+    } catch (err) {
+        showToast("Connection Failed: " + err.message, "alert");
+        console.error("Connection Test Error:", err);
     }
 }
 
