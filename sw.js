@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nlpl-v4';
+const CACHE_NAME = 'nlpl-v5';
 const STATIC_ASSETS = [
     './',
     'index.html',
