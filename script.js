@@ -8,11 +8,6 @@ if ('serviceWorker' in navigator) {
     caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
-// --- RESTORE SAVED THEME ---
-if (localStorage.getItem('nlpl_theme') === 'dark') {
-    document.body.classList.add('dark-mode');
-}
-
 // --- NEON CONFIG (using official @neondatabase/serverless driver) ---
 const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_xSQzvTLo3kU2@ep-dry-block-a13q0qk6-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
 
@@ -1636,7 +1631,6 @@ RETURNING *`;
 // --- THEME ---
 function toggleTheme() {
     document.body.classList.toggle("dark-mode");
-    localStorage.setItem('nlpl_theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
 }
 
 function toggleSidebar() {
@@ -4450,240 +4444,6 @@ let currentEditingBranch = null;
 // Track current modal state for use in save function
 let currentModalState = 'TARGET';
 
-// ===== MOBILE SECTION STEPPER =====
-const MODAL_SECTIONS = [
-    { id: 'section-ftod', label: 'FTOD', icon: 'F', color: '#6366F1', fields: ['ftod_actual', 'ftod_plan'] },
-    { id: 'section-slipped', label: 'Slip', icon: 'S', color: '#8B5CF6', fields: ['nov_25_Slipped_Accounts_Actual', 'nov_25_Slipped_Accounts_Plan'] },
-    { id: 'section-pnpa', label: 'PNPA', icon: 'P', color: '#EC4899', fields: ['pnpa_actual', 'pnpa_plan'] },
-    { id: 'section-npa', label: 'NPA', icon: 'N', color: '#F59E0B', fields: ['npa_activation', 'npa_closure'] },
-    { id: 'section-fy', label: 'FY', icon: 'A', color: '#10B981', fields: ['fy_od_acc', 'fy_od_plan', 'fy_non_start_acc', 'fy_non_start_plan'] },
-    { id: 'section-disb', label: 'Disb', icon: 'D', color: '#3B82F6', fields: ['disb_igl_acc', 'disb_igl_amt', 'disb_il_acc', 'disb_il_amt'], expandAlways: true },
-    { id: 'section-kyc', label: 'KYC', icon: 'K', color: '#EF4444', fields: ['kyc_fig_igl', 'kyc_il', 'kyc_npa'], expandAlways: true }
-];
-let mobileStepperActive = false;
-let currentMobileSection = 0;
-
-function isMobileView() { return window.innerWidth <= 768; }
-
-function initMobileStepper() {
-    if (!isMobileView()) { deactivateMobileStepper(); return; }
-    mobileStepperActive = true;
-    const modalBody = document.querySelector('#branchModal .modal-body');
-    if (!modalBody) return;
-    modalBody.classList.add('stepper-mode');
-    modalBody.classList.remove('stepper-expanded');
-
-    const pillsContainer = document.getElementById('stepperPills');
-    if (!pillsContainer) return;
-    pillsContainer.innerHTML = '';
-
-    MODAL_SECTIONS.forEach((section, i) => {
-        // Check if section has any visible fields
-        const hasVisible = section.fields.some(fid => {
-            const el = document.getElementById(fid);
-            if (!el) return false;
-            const row = el.closest('.form-row') || el.closest('.target-row');
-            return row && row.style.display !== 'none' && !el.disabled;
-        });
-        if (!hasVisible) return;
-
-        const pill = document.createElement('div');
-        pill.className = 'stepper-pill';
-        pill.dataset.sectionIndex = i;
-        pill.id = 'pill-' + section.id;
-        pill.innerHTML = '<span class="stepper-pill-icon" style="background:' + section.color + '">' + section.icon + '</span><span>' + section.label + '</span>';
-        pill.addEventListener('click', () => navigateToSection(i));
-        pillsContainer.appendChild(pill);
-    });
-
-    currentMobileSection = 0;
-    navigateToSection(0);
-    attachStepperFieldListeners();
-    updateStepperState();
-}
-
-function navigateToSection(idx) {
-    if (!mobileStepperActive) return;
-    const section = MODAL_SECTIONS[idx];
-    if (!section) return;
-    currentMobileSection = idx;
-
-    // Last 2 sections → expand all
-    if (section.expandAlways) { expandAllSections(); return; }
-
-    const modalBody = document.querySelector('#branchModal .modal-body');
-    modalBody.classList.remove('stepper-expanded');
-    modalBody.classList.add('stepper-mode');
-
-    // Collapse all sections
-    document.querySelectorAll('#branchModal .form-section[data-section]').forEach(el => {
-        el.classList.add('section-collapsed');
-        el.classList.remove('section-expanding');
-    });
-    document.querySelectorAll('#branchModal .grid-2-col[data-section-group]').forEach(el => {
-        el.classList.add('section-group-hidden');
-    });
-
-    // Show the active section
-    const activeEl = document.querySelector('[data-section="' + section.id + '"]');
-    if (activeEl) {
-        activeEl.classList.remove('section-collapsed');
-        activeEl.classList.add('section-expanding');
-        const parentGrid = activeEl.closest('.grid-2-col[data-section-group]');
-        if (parentGrid) parentGrid.classList.remove('section-group-hidden');
-        setTimeout(() => activeEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-        // Focus first empty field
-        setTimeout(() => {
-            const firstEmpty = section.fields.find(fid => {
-                const el = document.getElementById(fid);
-                if (!el) return false;
-                const row = el.closest('.form-row') || el.closest('.target-row');
-                return row && row.style.display !== 'none' && !el.disabled && el.value.trim() === '';
-            });
-            if (firstEmpty) document.getElementById(firstEmpty).focus();
-        }, 350);
-    }
-
-    updatePillStates();
-    // Scroll active pill into view
-    const pill = document.getElementById('pill-' + section.id);
-    if (pill) pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-
-    // Update title with progress
-    updateModalTitleProgress();
-}
-
-function expandAllSections() {
-    const modalBody = document.querySelector('#branchModal .modal-body');
-    modalBody.classList.remove('stepper-mode');
-    modalBody.classList.add('stepper-expanded');
-    document.querySelectorAll('#branchModal .form-section[data-section]').forEach(el => {
-        el.classList.remove('section-collapsed', 'section-expanding');
-    });
-    document.querySelectorAll('#branchModal .grid-2-col[data-section-group]').forEach(el => {
-        el.classList.remove('section-group-hidden');
-    });
-    const disb = document.querySelector('[data-section="section-disb"]');
-    if (disb) setTimeout(() => disb.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    updatePillStates();
-    updateModalTitleProgress();
-}
-
-function isSectionComplete(idx) {
-    const section = MODAL_SECTIONS[idx];
-    if (!section) return true;
-    return section.fields.every(fid => {
-        const el = document.getElementById(fid);
-        if (!el) return true;
-        const row = el.closest('.form-row') || el.closest('.target-row');
-        if (row && row.style.display === 'none') return true;
-        if (el.disabled) return true;
-        return el.value.trim() !== '';
-    });
-}
-
-function findNextIncompleteSection(afterIdx) {
-    for (let i = afterIdx + 1; i < MODAL_SECTIONS.length; i++) {
-        if (!isSectionComplete(i)) return i;
-    }
-    for (let i = 0; i < afterIdx; i++) {
-        if (!isSectionComplete(i)) return i;
-    }
-    return null;
-}
-
-function attachStepperFieldListeners() {
-    MODAL_SECTIONS.forEach((section, sIdx) => {
-        section.fields.forEach(fid => {
-            const el = document.getElementById(fid);
-            if (!el) return;
-            if (el._stepperHandler) el.removeEventListener('input', el._stepperHandler);
-            el._stepperHandler = function() {
-                if (!isSectionComplete(sIdx)) { updateStepperState(); return; }
-                const pill = document.getElementById('pill-' + section.id);
-                if (pill && !pill.classList.contains('completed')) {
-                    pill.classList.add('completed', 'just-completed');
-                    setTimeout(() => pill.classList.remove('just-completed'), 500);
-                }
-                updateStepperState();
-                // Auto-advance after short delay
-                setTimeout(() => {
-                    if (!mobileStepperActive) return;
-                    const next = findNextIncompleteSection(sIdx);
-                    if (next !== null) navigateToSection(next);
-                }, 600);
-            };
-            el.addEventListener('input', el._stepperHandler);
-        });
-    });
-}
-
-function updatePillStates() {
-    MODAL_SECTIONS.forEach((section, idx) => {
-        const pill = document.getElementById('pill-' + section.id);
-        if (!pill) return;
-        pill.classList.toggle('active', idx === currentMobileSection);
-        if (isSectionComplete(idx)) pill.classList.add('completed');
-        else pill.classList.remove('completed');
-    });
-}
-
-function updateStepperState() {
-    const total = MODAL_SECTIONS.length;
-    const done = MODAL_SECTIONS.filter((_, i) => isSectionComplete(i)).length;
-    const fill = document.getElementById('stepperProgressFill');
-    if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
-    updatePillStates();
-}
-
-function updateModalTitleProgress() {
-    if (!isMobileView() || !mobileStepperActive) return;
-    const title = document.getElementById('modalBranchTitle');
-    if (!title) return;
-    const done = MODAL_SECTIONS.filter((_, i) => isSectionComplete(i)).length;
-    const branchName = currentEditingBranch || 'Branch';
-    title.textContent = branchName + ' (' + done + '/' + MODAL_SECTIONS.length + ')';
-}
-
-function deactivateMobileStepper() {
-    mobileStepperActive = false;
-    const modalBody = document.querySelector('#branchModal .modal-body');
-    if (modalBody) modalBody.classList.remove('stepper-mode', 'stepper-expanded');
-    document.querySelectorAll('#branchModal .form-section[data-section]').forEach(el => {
-        el.classList.remove('section-collapsed', 'section-expanding');
-    });
-    document.querySelectorAll('#branchModal .grid-2-col[data-section-group]').forEach(el => {
-        el.classList.remove('section-group-hidden');
-    });
-}
-
-// Navigate stepper to section containing a specific field (for validation errors)
-function navigateToFieldSection(fieldId) {
-    if (!mobileStepperActive) return;
-    const idx = MODAL_SECTIONS.findIndex(s => s.fields.includes(fieldId));
-    if (idx !== -1) navigateToSection(idx);
-}
-
-// Resize handler
-let _stepperResizeTimer;
-window.addEventListener('resize', () => {
-    clearTimeout(_stepperResizeTimer);
-    _stepperResizeTimer = setTimeout(() => {
-        if (!document.getElementById('branchModal').classList.contains('visible')) return;
-        if (isMobileView() && !mobileStepperActive && currentModalState !== 'VIEW') initMobileStepper();
-        else if (!isMobileView() && mobileStepperActive) deactivateMobileStepper();
-    }, 250);
-});
-
-// Keyboard scroll handling for mobile
-document.addEventListener('focusin', (e) => {
-    if (!mobileStepperActive) return;
-    if (e.target.classList.contains('form-input') && e.target.closest('.modal-body')) {
-        setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
-    }
-});
-// ===== END MOBILE STEPPER =====
-
 // Track pending yesterday redirect state
 let pendingYesterdayRedirect = { branchName: null, yesterdayDate: null };
 
@@ -5027,17 +4787,11 @@ async function openBranchModal(branchName) {
     });
 
     document.getElementById("branchModal").classList.add("visible");
-
-    // Initialize mobile stepper after field states are set
-    if (currentModalState !== 'VIEW') {
-        setTimeout(() => initMobileStepper(), 100);
-    }
 }
 
 function closeBranchModal() {
     document.getElementById("branchModal").classList.remove("visible");
     currentEditingBranch = null;
-    deactivateMobileStepper();
 }
 
 
@@ -5075,34 +4829,27 @@ async function saveBranchDetails(andNext) {
         if (el) el.classList.remove("input-error");
     });
 
-    // 1. Temporarily expand all sections for validation (mobile stepper hides some)
-    const wasStepper = mobileStepperActive;
-    if (wasStepper) deactivateMobileStepper();
-
-    // Small delay for DOM to update offsetParent
-    await new Promise(r => setTimeout(r, 50));
-
-    // Validate for empty fields - check all visible/enabled inputs
+    // 1. Validate for empty fields - check all visible/enabled inputs
     for (const id of allFields) {
         const el = document.getElementById(id);
         if (el) {
+            // Check if the input is visible and not disabled/readonly
             const isVisible = el.offsetParent !== null;
             const isEnabled = !el.disabled && !el.readOnly;
+
+            // Check if empty (trim to handle whitespace-only values)
             const value = el.value.trim();
 
             if (isVisible && isEnabled && value === '') {
+                // Add error styling
                 el.classList.add("input-error");
-                // Re-activate stepper and navigate to the error section
-                if (wasStepper) {
-                    initMobileStepper();
-                    navigateToFieldSection(id);
-                    setTimeout(() => { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 400);
-                } else {
-                    el.focus();
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                // Focus on the empty field
+                el.focus();
+                // Scroll the input into view if needed
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Show error message
                 showToast("Enter an amount; if it does not apply, type 0 instead of leaving it empty.", "alert");
-                return;
+                return; // Stop save process
             }
         }
     }
