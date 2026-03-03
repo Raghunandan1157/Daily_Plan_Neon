@@ -239,7 +239,11 @@ function getPreviousMonthName(dateStr) {
 }
 
 function getSlippedLabel(dateStr) {
-    return `${getPreviousMonthName(dateStr)} Slipped`;
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    targetDate.setDate(1);
+    targetDate.setMonth(targetDate.getMonth() - 1);
+    const yr = String(targetDate.getFullYear()).slice(-2);
+    return `${getPreviousMonthName(dateStr)}-${yr} Slipped`;
 }
 
 // Get dynamic Fiscal Year label (e.g., "FY 2025-26")
@@ -4531,9 +4535,17 @@ async function openBranchModal(branchName) {
 
     // Update dynamic titles
     const prevMonth = getPreviousMonthName(state.systemDate);
+    const targetDate = state.systemDate ? new Date(state.systemDate) : new Date();
+    const prevMonthDate = new Date(targetDate);
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    const slippedYear = String(prevMonthDate.getFullYear()).slice(-2);
     const slippedTitleEl = document.getElementById('slippedSectionTitle');
     if (slippedTitleEl) {
-        slippedTitleEl.textContent = `${prevMonth}-25 SLIPPED ACCOUNT`;
+        slippedTitleEl.textContent = `${prevMonth.toUpperCase()}-${slippedYear} SLIPPED ACCOUNT`;
+    }
+    const fySectionEl = document.getElementById('fySectionTitle');
+    if (fySectionEl) {
+        fySectionEl.textContent = `${getFiscalYearLabel(state.systemDate)} Accounts`;
     }
 
     if (reportState === 'ACHIEVEMENT') {
