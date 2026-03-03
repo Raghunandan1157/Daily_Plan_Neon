@@ -1,7 +1,30 @@
+// --- SERVICE WORKER ---
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
 // --- SUPABASE CONFIG ---
 const SUPABASE_URL = 'https://zovnmmdfthpbubrorsgh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpvdm5tbWRmdGhwYnVicm9yc2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NzE3ODgsImV4cCI6MjA3NzE0Nzc4OH0.92BH2sjUOgkw6iSRj1_4gt0p3eThg3QT4VK-Q4EdmBE';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- DATA CACHE (show last data instantly while fresh data loads) ---
+function getCachedData(key) {
+    try {
+        const raw = localStorage.getItem('nlpl_cache_' + key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        // Cache is valid for 12 hours
+        if (Date.now() - parsed.ts > 12 * 60 * 60 * 1000) return null;
+        return parsed.data;
+    } catch (e) { return null; }
+}
+
+function setCachedData(key, data) {
+    try {
+        localStorage.setItem('nlpl_cache_' + key, JSON.stringify({ ts: Date.now(), data: data }));
+    } catch (e) { /* localStorage full — ignore */ }
+}
 
 // --- DATA & STATE ---
 // --- DATA & STATE ---
@@ -1164,9 +1187,23 @@ function mergeAchievementsWithPlan(branchDetails) {
 async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     const MAX_RETRIES = 3;
     const targetDate = state.systemDate;
+    const cacheKey = (state.role || 'CEO') + '_' + targetDate;
     console.log("fetchSupabaseData: Starting for date " + targetDate + (retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''));
 
-    setLoading(true, retryCount > 0 ? `Retrying... (${retryCount}/${MAX_RETRIES})` : 'Loading data...');
+    // Show cached data instantly while we fetch fresh data from network
+    if (retryCount === 0) {
+        const cached = getCachedData(cacheKey);
+        if (cached) {
+            console.log("fetchSupabaseData: Showing cached data for " + cacheKey);
+            state.branchDetails = cached;
+            if (!skipRender) renderDashboard();
+            setLoading(true, 'Refreshing...');
+        } else {
+            setLoading(true, 'Loading data...');
+        }
+    } else {
+        setLoading(true, `Retrying... (${retryCount}/${MAX_RETRIES})`);
+    }
 
     try {
         // Parallel Fetch with timeout for reliability
@@ -1238,6 +1275,9 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         // Ensure achievement data is filled even if Supabase achievement rows are sparse
         mergeAchievementsWithPlan(state.branchDetails);
 
+        // Cache fresh data for instant load on next visit
+        setCachedData(cacheKey, state.branchDetails);
+
         const targetCount = resPlan.data?.length || 0;
         const achieveCount = resAchieve.data?.length || 0;
         console.log(`fetchSupabaseData: Processed ${targetCount} plans, ${achieveCount} achievements`);
@@ -1264,7 +1304,12 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
             return fetchSupabaseData(retryCount + 1, skipRender);
         }
 
-        showToast('Connection error. Please check your network and try again.', 'alert');
+        // If we already showed cached data, just warn instead of blocking
+        if (getCachedData(cacheKey)) {
+            showToast('Showing cached data. Could not refresh from server.', 'warning');
+        } else {
+            showToast('Connection error. Please check your network and try again.', 'alert');
+        }
     } finally {
         console.log("fetchSupabaseData: Entering finally, calling setLoading(false)");
         setLoading(false);
