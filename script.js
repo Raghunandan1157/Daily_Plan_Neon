@@ -1618,13 +1618,11 @@ async function selectSystemDate(offset) {
     // Update Header Display
     updateHeaderDate(isoDate);
 
-    // Transition to App
+    // Transition to App — load immediately, don't wait for fade animation
     const dailyOverlay = document.getElementById("daily-overlay");
     dailyOverlay.style.opacity = '0';
-    setTimeout(() => {
-        dailyOverlay.classList.add("hidden");
-        loadAppUI();
-    }, 500);
+    dailyOverlay.classList.add("hidden");
+    loadAppUI();
 }
 
 function loadAppUI() {

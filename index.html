@@ -7,12 +7,16 @@
   <meta name="description"
     content="NLPL Branch Profitability Dashboard - Monitor branch performance, collections, and achievements.">
   <title>NLPL OrgPortal</title>
+  <!-- Preload critical resources so browser starts downloading early -->
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js" as="script">
+  <link rel="preload" href="script.min.js" as="script">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.min.css">
 </head>
 
 <body>
@@ -692,7 +696,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
-  <script src="script.js"></script>
+  <script src="script.min.js"></script>
 </body>
 
 </html>
