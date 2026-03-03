@@ -174,7 +174,8 @@ let state = {
     dateFrom: null, // Range Start
     dateTo: null,   // Range End
     isDragging: false,
-    dragStartDate: null
+    dragStartDate: null,
+    _fetchController: null // AbortController for in-flight fetchSupabaseData
 };
 
 // --- HELPER FUNCTIONS ---
@@ -352,6 +353,9 @@ function throttle(func, limit) {
         }
     };
 }
+
+// Debounced fetch for rapid date changes (date picker, arrow nav, quick buttons)
+const debouncedFetchSupabaseData = debounce(() => fetchSupabaseData(), 300);
 
 // --- LOADING STATE MANAGEMENT ---
 function setLoading(isLoading, message = 'Loading...') {
@@ -1032,6 +1036,14 @@ async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
 
 // Fetch data for a date range (aggregates multiple days)
 async function fetchSupabaseDataRange(fromDate, toDate) {
+    // DEDUPLICATION: Abort any in-flight fetch when a new range fetch starts
+    if (state._fetchController) {
+        console.log("fetchSupabaseDataRange: Aborting previous in-flight request");
+        state._fetchController.abort();
+    }
+    state._fetchController = new AbortController();
+    const abortSignal = state._fetchController.signal;
+
     const cacheKey = (state.role || 'CEO') + '_range_' + fromDate + '_' + toDate;
 
     // Show cached data instantly (stale-while-revalidate)
@@ -1044,10 +1056,13 @@ async function fetchSupabaseDataRange(fromDate, toDate) {
 
     try {
         const branchDetails = await fetchAndAggregateData(fromDate, toDate);
+        // Check abort before applying results
+        if (abortSignal.aborted) return;
         state.branchDetails = branchDetails;
         setCachedData(cacheKey, branchDetails);
         setLoading(false);
     } catch (error) {
+        if (abortSignal.aborted) return; // Silently ignore aborted requests
         console.error('Fetch range error:', error);
         setLoading(false);
         // If we showed cached data, don't re-throw — user already sees data
@@ -1216,6 +1231,17 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     const MAX_RETRIES = 3;
     const targetDate = state.systemDate;
     const cacheKey = (state.role || 'CEO') + '_' + targetDate;
+
+    // DEDUPLICATION: Abort any in-flight fetch when a new one starts (retryCount === 0 means fresh call)
+    if (retryCount === 0) {
+        if (state._fetchController) {
+            console.log("fetchSupabaseData: Aborting previous in-flight request");
+            state._fetchController.abort();
+        }
+        state._fetchController = new AbortController();
+    }
+    const abortSignal = state._fetchController?.signal;
+
     console.log("fetchSupabaseData: Starting for date " + targetDate + (retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''));
 
     // Show cached data instantly while we fetch fresh data from network
@@ -1234,6 +1260,12 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
     }
 
     try {
+        // Check if this request was already aborted (superseded by a newer call)
+        if (abortSignal?.aborted) {
+            console.log("fetchSupabaseData: Aborted before fetch (superseded)");
+            return;
+        }
+
         // Parallel Fetch with timeout for reliability
         // Mobile networks (especially Android on cellular) need longer timeouts
         let timeoutId;
@@ -1245,6 +1277,15 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
                 reject(new Error('Request timeout'));
             }, timeoutMs)
         );
+
+        // Also reject on abort signal (newer fetch supersedes this one)
+        const abortPromise = new Promise((_, reject) => {
+            if (abortSignal) {
+                abortSignal.addEventListener('abort', () => {
+                    reject(new Error('Fetch aborted: superseded by newer request'));
+                }, { once: true });
+            }
+        });
 
         // DM optimization: only fetch branches assigned to this DM
         const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,nov_25_Slipped_Accounts_Actual,nov_25_Slipped_Accounts_Plan,pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
@@ -1263,9 +1304,17 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         console.log("fetchSupabaseData: Awaiting Promise.race");
         const [resPlan, resAchieve] = await Promise.race([
             Promise.all([p1, p2]),
-            timeout
+            timeout,
+            abortPromise
         ]);
         clearTimeout(timeoutId); // Clear timeout on success
+
+        // Check abort after fetch completes (another call may have started during await)
+        if (abortSignal?.aborted) {
+            console.log("fetchSupabaseData: Aborted after fetch (superseded)");
+            return;
+        }
+
         console.log("fetchSupabaseData: Promise.race resolved", { resPlan, resAchieve });
 
         if (resPlan.error || resAchieve.error) {
@@ -1284,6 +1333,8 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
                 console.warn(`Fetch network error, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
                 clearTimeout(timeoutId);
                 await new Promise(resolve => setTimeout(resolve, delay));
+                // Check abort before retrying
+                if (abortSignal?.aborted) return;
                 return fetchSupabaseData(retryCount + 1, skipRender);
             }
 
@@ -1322,6 +1373,12 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
             console.log("fetchSupabaseData: renderDashboard completed");
         }
     } catch (err) {
+        // Silently ignore aborted requests — they were intentionally cancelled
+        if (err.message?.includes('aborted') || err.message?.includes('superseded') || abortSignal?.aborted) {
+            console.log("fetchSupabaseData: Request was aborted (superseded by newer request)");
+            return;
+        }
+
         console.error("Fetch Error:", err);
 
         // Retry on network/timeout errors — but skip retries if cache already shown
@@ -1342,6 +1399,8 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
             console.warn(`Fetch timeout, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
             showToast(`Connection slow, retrying... (${retryCount + 1}/${MAX_RETRIES})`, 'warning');
             await new Promise(resolve => setTimeout(resolve, delay));
+            // Check abort before retrying
+            if (abortSignal?.aborted) return;
             return fetchSupabaseData(retryCount + 1, skipRender);
         }
 
@@ -2004,7 +2063,7 @@ function renderReports(buffer) {
                             </div>
                             <div style="width:1px; height:24px; background:var(--border-color); margin:0 8px;"></div>
                             <input type="date" id="reportDateInput" value="${state.systemDate}"
-                                onchange="state.systemDate = this.value; updateHeaderDate(this.value); fetchSupabaseData();"
+                                onchange="state.systemDate = this.value; updateHeaderDate(this.value); debouncedFetchSupabaseData();"
                                 style="padding:8px; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-body); color:var(--text-primary);">
                         </div>
                     </div>
@@ -2141,7 +2200,7 @@ function setReportDate(offset) {
     // Refresh UI to reflect date change (highlight button etc - optional)
     // Ideally we might want to re-fetch data if it wasn't pre-loaded, but for now we assume data changes with date
     // Trigger data refresh if needed:
-    fetchSupabaseData(); // Re-fetch for the new date
+    debouncedFetchSupabaseData(); // Re-fetch for the new date (debounced to prevent rapid-fire)
 }
 
 // --- COLOR HELPER FOR REPORTS ---
