@@ -982,7 +982,7 @@ async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
 
         if (resPlan.error || resAchieve.error) {
             const errorMsg = resPlan.error?.message || resAchieve.error?.message;
-            const isNetworkError = errorMsg && (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout'));
+            const isNetworkError = errorMsg && (errorMsg.includes('Failed to fetch') || errorMsg.includes('Load failed') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout'));
             if (isNetworkError && retryCount < MAX_RETRIES) {
                 const delay = Math.min(2000 * Math.pow(2, retryCount), 10000);
                 console.warn(`Range fetch error, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
@@ -1020,6 +1020,7 @@ async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
         clearTimeout(timeoutId);
         const isNetworkError = err.message && (
             err.message.includes('Failed to fetch') ||
+            err.message.includes('Load failed') ||
             err.message.includes('timeout') ||
             err.message.includes('NetworkError')
         );
@@ -1319,7 +1320,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
 
         if (resPlan.error || resAchieve.error) {
             const errorMsg = resPlan.error?.message || resAchieve.error?.message || 'Unknown error';
-            const isNetworkError = errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout');
+            const isNetworkError = errorMsg.includes('Failed to fetch') || errorMsg.includes('Load failed') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout');
 
             // If user already sees cached data, don't retry — just warn
             if (hasCachedData) {
@@ -1384,6 +1385,7 @@ async function fetchSupabaseData(retryCount = 0, skipRender = false) {
         // Retry on network/timeout errors — but skip retries if cache already shown
         const isNetworkError = err.message && (
             err.message.includes('Failed to fetch') ||
+            err.message.includes('Load failed') ||
             err.message.includes('timeout') ||
             err.message.includes('NetworkError')
         );
@@ -1576,6 +1578,7 @@ async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
             // Check if it's a network/timeout error (retryable)
             const isNetworkError = error.message && (
                 error.message.includes('Failed to fetch') ||
+                error.message.includes('Load failed') ||
                 error.message.includes('NetworkError') ||
                 error.message.includes('timeout') ||
                 error.message.includes('ERR_CONNECTION')
@@ -1602,6 +1605,7 @@ async function saveToSupabase(branchName, branchData, table, retryCount = 0) {
         // Catch network-level errors (e.g. Failed to fetch thrown as exception)
         const isNetworkError = err.message && (
             err.message.includes('Failed to fetch') ||
+            err.message.includes('Load failed') ||
             err.message.includes('NetworkError') ||
             err.message.includes('timeout')
         );
