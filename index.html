@@ -9,14 +9,14 @@
   <title>NLPL OrgPortal</title>
   <link rel="icon" href="logo.png" type="image/png">
   <!-- Preload critical resources so browser starts downloading early -->
-  <link rel="preload" href="script.min.js?v=6" as="script">
+  <link rel="preload" href="script.js?v=8" as="script">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.min.css">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 
 <body>
@@ -352,7 +352,7 @@
         <!-- LEFT COLUMN -->
         <div class="left-panel">
 
-          <!-- Row 1 -->
+          <!-- Row 1: FTOD + 1-30 DPD -->
           <div class="grid-2-col">
             <div class="form-section">
               <div class="form-section-title">FTOD - ACCOUNTS</div>
@@ -368,36 +368,52 @@
             </div>
 
             <div class="form-section">
-              <div class="form-section-title" id="slippedSectionTitle">NOV-25 SLIPPED ACCOUNT</div>
+              <div class="form-section-title">1-30 DPD</div>
               <div class="form-row">
                 <label class="form-label">Actual Account</label>
-                <input class="form-input" id="nov_25_Slipped_Accounts_Actual" placeholder="Actual Account" maxlength="3" inputmode="numeric"
+                <input class="form-input monthly-lock" id="dpd_1_30_actual" placeholder="Actual Account" maxlength="3" inputmode="numeric"
                   oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
               </div>
               <div class="form-row">
                 <label class="form-label">Collection Plan</label>
-                <input class="form-input" id="nov_25_Slipped_Accounts_Plan" placeholder="Collection Plan" inputmode="numeric">
+                <input class="form-input" id="dpd_1_30_plan" placeholder="Collection Plan" inputmode="numeric">
               </div>
             </div>
           </div>
 
-          <!-- Row 2 -->
+          <!-- Row 2: 31-60 DPD + 61-90 DPD -->
           <div class="grid-2-col">
             <div class="form-section">
-              <div class="form-section-title">PNPA ACCOUNTS</div>
+              <div class="form-section-title">31-60 DPD</div>
               <div class="form-row">
-                <label class="form-label">Actual PNPA Account</label>
-                <input class="form-input" id="pnpa_actual" placeholder="Actual PNPA Account" maxlength="3" inputmode="numeric"
+                <label class="form-label">Actual Account</label>
+                <input class="form-input monthly-lock" id="dpd_31_60_actual" placeholder="Actual Account" maxlength="3" inputmode="numeric"
                   oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
               </div>
               <div class="form-row">
-                <label class="form-label">PNPA Collection Plan</label>
-                <input class="form-input" id="pnpa_plan" placeholder="PNPA Collection Plan" inputmode="numeric">
+                <label class="form-label">Collection Plan</label>
+                <input class="form-input" id="dpd_31_60_plan" placeholder="Collection Plan" inputmode="numeric">
               </div>
             </div>
 
             <div class="form-section">
-              <div class="form-section-title">NPA ACCOUNTS</div>
+              <div class="form-section-title">61-90 DPD</div>
+              <div class="form-row">
+                <label class="form-label">Actual Account</label>
+                <input class="form-input monthly-lock" id="dpd_61_90_actual" placeholder="Actual Account" maxlength="3" inputmode="numeric"
+                  oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
+              </div>
+              <div class="form-row">
+                <label class="form-label">Collection Plan</label>
+                <input class="form-input" id="dpd_61_90_plan" placeholder="Collection Plan" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: NPA -->
+          <div class="form-section">
+            <div class="form-section-title">NPA ACCOUNTS</div>
+            <div class="grid-2-col">
               <div class="form-row">
                 <label class="form-label">NPA ACTIVATION</label>
                 <input class="form-input" id="npa_activation" placeholder="NPA ACTIVATION" maxlength="3" inputmode="numeric"
@@ -413,19 +429,8 @@
 
           <!-- Row 3 -->
           <div class="form-section">
-            <div class="form-section-title" id="fySectionTitle">FY 2025-26 Accounts</div>
+            <div class="form-section-title" id="fySectionTitle">FY Non-Starter Accounts</div>
             <div class="grid-2-col">
-              <div>
-                <div class="form-row">
-                  <label class="form-label">TOTAL OD ACCOUNTS</label>
-                  <input class="form-input" id="fy_od_acc" placeholder="TOTAL OD ACCOUNTS" maxlength="3" inputmode="numeric"
-                    oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
-                </div>
-                <div class="form-row">
-                  <label class="form-label">COLLECTION PLAN</label>
-                  <input class="form-input" id="fy_od_plan" placeholder="COLLECTION PLAN" inputmode="numeric">
-                </div>
-              </div>
               <div>
                 <div class="form-row">
                   <label class="form-label">NON-STARTER ACCOUNTS</label>
@@ -454,7 +459,7 @@
 
             <div class="target-row">
               <div class="target-header">
-                <span>IGL & FIG (Accounts)</span>
+                <span>IGL (Accounts)</span>
               </div>
               <input class="form-input" id="disb_igl_acc" placeholder="Enter target..." maxlength="3" inputmode="numeric"
                 oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
@@ -462,9 +467,24 @@
 
             <div class="target-row">
               <div class="target-header">
-                <span>IGL & FIG (Amount)</span>
+                <span>IGL (Amount)</span>
               </div>
               <input class="form-input" id="disb_igl_amt" placeholder="Enter target..." inputmode="numeric">
+            </div>
+
+            <div class="target-row">
+              <div class="target-header">
+                <span>FIG (Accounts)</span>
+              </div>
+              <input class="form-input" id="disb_fig_acc" placeholder="Enter target..." maxlength="3" inputmode="numeric"
+                oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
+            </div>
+
+            <div class="target-row">
+              <div class="target-header">
+                <span>FIG (Amount)</span>
+              </div>
+              <input class="form-input" id="disb_fig_amt" placeholder="Enter target..." inputmode="numeric">
             </div>
 
             <div class="target-row">
@@ -488,8 +508,14 @@
             <div class="form-section-title" id="lbl_kyc">KYC SOURCING</div>
 
             <div class="form-row">
-              <label class="form-label">FIG AND IGL</label>
-              <input class="form-input" id="kyc_fig_igl" placeholder="FIG AND IGL" maxlength="3" inputmode="numeric"
+              <label class="form-label">IGL</label>
+              <input class="form-input" id="kyc_igl" placeholder="IGL" maxlength="3" inputmode="numeric"
+                oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">FIG</label>
+              <input class="form-input" id="kyc_fig" placeholder="FIG" maxlength="3" inputmode="numeric"
                 oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
             </div>
 
@@ -497,13 +523,6 @@
               <label class="form-label">IL</label>
               <input class="form-input" id="kyc_il" placeholder="IL" maxlength="3" inputmode="numeric"
                 oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
-            </div>
-
-            <div class="form-row"
-              style="background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 8px; padding: 12px; margin-top: 8px;">
-              <label class="form-label" style="color: #B45309; font-weight: 600;">FOR NPA</label>
-              <input class="form-input" id="kyc_npa" placeholder="NPA" maxlength="3" inputmode="numeric"
-                oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);" style="border-color: #F59E0B;">
             </div>
           </div>
 
@@ -695,7 +714,7 @@
     </div>
   </div>
 
-  <script src="script.min.js?v=6"></script>
+  <script src="script.js?v=8"></script>
 </body>
 
 </html>

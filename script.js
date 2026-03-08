@@ -238,13 +238,7 @@ function getPreviousMonthName(dateStr) {
     return monthNames[targetDate.getMonth()];
 }
 
-function getSlippedLabel(dateStr) {
-    const targetDate = dateStr ? new Date(dateStr) : new Date();
-    targetDate.setDate(1);
-    targetDate.setMonth(targetDate.getMonth() - 1);
-    const yr = String(targetDate.getFullYear()).slice(-2);
-    return `${getPreviousMonthName(dateStr)}-${yr} Slipped`;
-}
+// getSlippedLabel removed — now using '1-30 DPD' literal
 
 // Get dynamic Fiscal Year label (e.g., "FY 2025-26")
 // Fiscal year in India runs from April to March
@@ -308,15 +302,17 @@ function calculateTotalCollectionPercentage() {
         // Sum Plans
         if (entry.target) {
             totalPlan += (Number(entry.target.ftod_plan) || 0) +
-                (Number(entry.target.nov_25_Slipped_Accounts_Plan) || 0) +
-                (Number(entry.target.pnpa_plan) || 0);
+                (Number(entry.target.dpd_1_30_plan) || 0) +
+                (Number(entry.target.dpd_31_60_plan) || 0) +
+                (Number(entry.target.dpd_61_90_plan) || 0);
         }
 
         // Sum Achievements
         if (entry.achievement) {
             totalAchieve += (Number(entry.achievement.ftod_actual) || 0) +
-                (Number(entry.achievement.nov_25_Slipped_Accounts_Actual) || 0) +
-                (Number(entry.achievement.pnpa_actual) || 0);
+                (Number(entry.achievement.dpd_1_30_actual) || 0) +
+                (Number(entry.achievement.dpd_31_60_actual) || 0) +
+                (Number(entry.achievement.dpd_61_90_actual) || 0);
         }
     });
 
@@ -962,7 +958,7 @@ function navigateDatePicker(delta) {
 // Core fetch and aggregate logic - Reusable
 async function fetchAndAggregateData(fromDate, toDate, retryCount = 0) {
     const MAX_RETRIES = 3;
-    const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,"nov_25_Slipped_Accounts_Actual","nov_25_Slipped_Accounts_Plan",pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
+    const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,dpd_1_30_actual,dpd_1_30_plan,dpd_31_60_actual,dpd_31_60_plan,dpd_61_90_actual,dpd_61_90_plan,npa_activation,npa_closure,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_fig_acc,disb_fig_amt,disb_il_acc,disb_il_amt,kyc_igl,kyc_fig,kyc_il';
     const isSingleDate = fromDate === toDate;
 
     // Build SQL query with parameterized WHERE clause
@@ -1173,37 +1169,39 @@ function mergeAchievementsWithPlan(branchDetails) {
     // Exclude: npa_activation, npa_closure, disb_*, kyc_* as they are independent values
     const achievementToMerge = [
         'ftod_actual',
-        'nov_25_Slipped_Accounts_Actual',
-        'pnpa_actual',
-        'fy_od_acc',
+        'dpd_1_30_actual',
+        'dpd_31_60_actual',
+        'dpd_61_90_actual',
         'fy_non_start_acc'
     ];
 
     // Mapping from achievement field to corresponding plan field
     const achievementToPlanMap = {
         'ftod_actual': 'ftod_plan',
-        'nov_25_Slipped_Accounts_Actual': 'nov_25_Slipped_Accounts_Plan',
-        'pnpa_actual': 'pnpa_plan',
-        'fy_od_acc': 'fy_od_plan',
+        'dpd_1_30_actual': 'dpd_1_30_plan',
+        'dpd_31_60_actual': 'dpd_31_60_plan',
+        'dpd_61_90_actual': 'dpd_61_90_plan',
         'fy_non_start_acc': 'fy_non_start_plan'
     };
 
     // Original full list for reference (used for hasRealAchievementData check)
     const achievementFields = [
         'ftod_actual',
-        'nov_25_Slipped_Accounts_Actual',
-        'pnpa_actual',
+        'dpd_1_30_actual',
+        'dpd_31_60_actual',
+        'dpd_61_90_actual',
         'npa_activation',
         'npa_closure',
-        'fy_od_acc',
         'fy_non_start_acc',
         'disb_igl_acc',
         'disb_igl_amt',
+        'disb_fig_acc',
+        'disb_fig_amt',
         'disb_il_acc',
         'disb_il_amt',
-        'kyc_fig_igl',
-        'kyc_il',
-        'kyc_npa'
+        'kyc_igl',
+        'kyc_fig',
+        'kyc_il'
     ];
 
     Object.keys(branchDetails).forEach(branchName => {
@@ -1321,7 +1319,7 @@ async function fetchData(retryCount = 0, skipRender = false) {
         });
 
         // DM optimization: only fetch branches assigned to this DM
-        const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,"nov_25_Slipped_Accounts_Actual","nov_25_Slipped_Accounts_Plan",pnpa_actual,pnpa_plan,npa_activation,npa_closure,fy_od_acc,fy_od_plan,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_il_acc,disb_il_amt,kyc_fig_igl,kyc_il,kyc_npa';
+        const selectCols = 'branch_name,date,region,district,dm_name,ftod_actual,ftod_plan,dpd_1_30_actual,dpd_1_30_plan,dpd_31_60_actual,dpd_31_60_plan,dpd_61_90_actual,dpd_61_90_plan,npa_activation,npa_closure,fy_non_start_acc,fy_non_start_plan,disb_igl_acc,disb_igl_amt,disb_fig_acc,disb_fig_amt,disb_il_acc,disb_il_amt,kyc_igl,kyc_fig,kyc_il';
         let whereClauses = ['date = $1'];
         let queryParams = [targetDate];
         let paramIdx = 2;
@@ -1541,30 +1539,32 @@ async function saveData(branchName, branchData, table, retryCount = 0) {
         // Map fields directly with conversion
         ftod_actual: toNum(branchData.ftod_actual),
         ftod_plan: toNum(branchData.ftod_plan),
-        nov_25_Slipped_Accounts_Actual: toNum(branchData.nov_25_Slipped_Accounts_Actual),
-        nov_25_Slipped_Accounts_Plan: toNum(branchData.nov_25_Slipped_Accounts_Plan),
-        pnpa_actual: toNum(branchData.pnpa_actual),
-        pnpa_plan: toNum(branchData.pnpa_plan),
+        dpd_1_30_actual: toNum(branchData.dpd_1_30_actual),
+        dpd_1_30_plan: toNum(branchData.dpd_1_30_plan),
+        dpd_31_60_actual: toNum(branchData.dpd_31_60_actual),
+        dpd_31_60_plan: toNum(branchData.dpd_31_60_plan),
+        dpd_61_90_actual: toNum(branchData.dpd_61_90_actual),
+        dpd_61_90_plan: toNum(branchData.dpd_61_90_plan),
         npa_activation: toNum(branchData.npa_activation),
         npa_closure: toNum(branchData.npa_closure),
-        fy_od_acc: toNum(branchData.fy_od_acc),
-        fy_od_plan: toNum(branchData.fy_od_plan),
         fy_non_start_acc: toNum(branchData.fy_non_start_acc),
         fy_non_start_plan: toNum(branchData.fy_non_start_plan),
 
         disb_igl_acc: toNum(branchData.disb_igl_acc),
         disb_igl_amt: toNum(branchData.disb_igl_amt),
+        disb_fig_acc: toNum(branchData.disb_fig_acc),
+        disb_fig_amt: toNum(branchData.disb_fig_amt),
         disb_il_acc: toNum(branchData.disb_il_acc),
         disb_il_amt: toNum(branchData.disb_il_amt),
-        kyc_fig_igl: toNum(branchData.kyc_fig_igl),
-        kyc_il: toNum(branchData.kyc_il),
-        kyc_npa: toNum(branchData.kyc_npa)
+        kyc_igl: toNum(branchData.kyc_igl),
+        kyc_fig: toNum(branchData.kyc_fig),
+        kyc_il: toNum(branchData.kyc_il)
     };
 
     const columns = Object.keys(payload);
     const values = Object.values(payload);
     const placeholders = columns.map((_, i) => `$${i + 1}`);
-    // Quote column names to preserve mixed-case (e.g. nov_25_Slipped_Accounts_Actual)
+    // Quote column names to preserve mixed-case (e.g. dpd_1_30_actual)
     const q = c => `"${c}"`;
     const updateSet = columns
         .filter(c => c !== 'date' && c !== 'branch_name')
@@ -2656,8 +2656,8 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
     const sortedRows = Array.from(mergedMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
     // Totals
-    const tPlan = { ftod: 0, slip: 0, pnpa: 0, npaAct: 0, npaClose: 0, od: 0, ns: 0, disbIglAcc: 0, disbIglAmt: 0, disbIlAcc: 0, disbIlAmt: 0, kycFig: 0, kycIl: 0, kycNpa: 0 };
-    const tAch = { ftod: 0, slip: 0, pnpa: 0, npaAct: 0, npaClose: 0, od: 0, ns: 0, disbIglAcc: 0, disbIglAmt: 0, disbIlAcc: 0, disbIlAmt: 0, kycFig: 0, kycIl: 0, kycNpa: 0 };
+    const tPlan = { ftod: 0, dpd130: 0, dpd3160: 0, dpd6190: 0, npaAct: 0, npaClose: 0, ns: 0, disbIglAcc: 0, disbIglAmt: 0, disbFigAcc: 0, disbFigAmt: 0, disbIlAcc: 0, disbIlAmt: 0, kycIgl: 0, kycFig: 0, kycIl: 0 };
+    const tAch = { ftod: 0, dpd130: 0, dpd3160: 0, dpd6190: 0, npaAct: 0, npaClose: 0, ns: 0, disbIglAcc: 0, disbIglAmt: 0, disbFigAcc: 0, disbFigAmt: 0, disbIlAcc: 0, disbIlAmt: 0, kycIgl: 0, kycFig: 0, kycIl: 0 };
 
     let bodyRows = '';
     let totalRowAchievementSum = 0;
@@ -2676,54 +2676,60 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
 
         // PLAN Values
         const p_ftod = parseInt(p.ftod_plan) || 0;
-        const p_slip = parseInt(p.nov_25_Slipped_Accounts_Plan) || 0;
-        const p_pnpa = parseInt(p.pnpa_plan) || 0;
+        const p_dpd130 = parseInt(p.dpd_1_30_plan) || 0;
+        const p_dpd3160 = parseInt(p.dpd_31_60_plan) || 0;
+        const p_dpd6190 = parseInt(p.dpd_61_90_plan) || 0;
         const p_npaAct = parseInt(p.npa_activation) || 0;
         const p_npaClose = parseInt(p.npa_closure) || 0;
-        const p_od = parseInt(p.fy_od_plan) || 0;
         const p_ns = parseInt(p.fy_non_start_plan) || 0;
         const p_disbIglAcc = parseInt(p.disb_igl_acc) || 0;
         const p_disbIglAmt = parseInt(p.disb_igl_amt) || 0;
+        const p_disbFigAcc = parseInt(p.disb_fig_acc) || 0;
+        const p_disbFigAmt = parseInt(p.disb_fig_amt) || 0;
         const p_disbIlAcc = parseInt(p.disb_il_acc) || 0;
         const p_disbIlAmt = parseInt(p.disb_il_amt) || 0;
-        const p_kycFig = parseInt(p.kyc_fig_igl) || 0;
+        const p_kycIgl = parseInt(p.kyc_igl) || 0;
+        const p_kycFig = parseInt(p.kyc_fig) || 0;
         const p_kycIl = parseInt(p.kyc_il) || 0;
-        const p_kycNpa = parseInt(p.kyc_npa) || 0;
 
         // ACHIEVE Values
         const a_ftod = parseInt(a.ftod_actual) || 0;
-        const a_slip = parseInt(a.nov_25_Slipped_Accounts_Actual) || 0;
-        const a_pnpa = parseInt(a.pnpa_actual) || 0;
+        const a_dpd130 = parseInt(a.dpd_1_30_actual) || 0;
+        const a_dpd3160 = parseInt(a.dpd_31_60_actual) || 0;
+        const a_dpd6190 = parseInt(a.dpd_61_90_actual) || 0;
         const a_npaAct = parseInt(a.npa_activation) || 0;
         const a_npaClose = parseInt(a.npa_closure) || 0;
-        const a_od = parseInt(a.fy_od_acc) || 0;
         const a_ns = parseInt(a.fy_non_start_acc) || 0;
         const a_disbIglAcc = parseInt(a.disb_igl_acc) || 0;
         const a_disbIglAmt = parseInt(a.disb_igl_amt) || 0;
+        const a_disbFigAcc = parseInt(a.disb_fig_acc) || 0;
+        const a_disbFigAmt = parseInt(a.disb_fig_amt) || 0;
         const a_disbIlAcc = parseInt(a.disb_il_acc) || 0;
         const a_disbIlAmt = parseInt(a.disb_il_amt) || 0;
-        const a_kycFig = parseInt(a.kyc_fig_igl) || 0;
+        const a_kycIgl = parseInt(a.kyc_igl) || 0;
+        const a_kycFig = parseInt(a.kyc_fig) || 0;
         const a_kycIl = parseInt(a.kyc_il) || 0;
-        const a_kycNpa = parseInt(a.kyc_npa) || 0;
 
         // Update Totals
-        tPlan.ftod += p_ftod; tPlan.slip += p_slip; tPlan.pnpa += p_pnpa;
+        tPlan.ftod += p_ftod; tPlan.dpd130 += p_dpd130; tPlan.dpd3160 += p_dpd3160; tPlan.dpd6190 += p_dpd6190;
         tPlan.npaAct += p_npaAct; tPlan.npaClose += p_npaClose;
-        tPlan.od += p_od; tPlan.ns += p_ns;
+        tPlan.ns += p_ns;
         tPlan.disbIglAcc += p_disbIglAcc; tPlan.disbIglAmt += p_disbIglAmt;
+        tPlan.disbFigAcc += p_disbFigAcc; tPlan.disbFigAmt += p_disbFigAmt;
         tPlan.disbIlAcc += p_disbIlAcc; tPlan.disbIlAmt += p_disbIlAmt;
-        tPlan.kycFig += p_kycFig; tPlan.kycIl += p_kycIl; tPlan.kycNpa += p_kycNpa;
+        tPlan.kycIgl += p_kycIgl; tPlan.kycFig += p_kycFig; tPlan.kycIl += p_kycIl;
 
-        tAch.ftod += a_ftod; tAch.slip += a_slip; tAch.pnpa += a_pnpa;
+        tAch.ftod += a_ftod; tAch.dpd130 += a_dpd130; tAch.dpd3160 += a_dpd3160; tAch.dpd6190 += a_dpd6190;
         tAch.npaAct += a_npaAct; tAch.npaClose += a_npaClose;
-        tAch.od += a_od; tAch.ns += a_ns;
+        tAch.ns += a_ns;
         tAch.disbIglAcc += a_disbIglAcc; tAch.disbIglAmt += a_disbIglAmt;
+        tAch.disbFigAcc += a_disbFigAcc; tAch.disbFigAmt += a_disbFigAmt;
         tAch.disbIlAcc += a_disbIlAcc; tAch.disbIlAmt += a_disbIlAmt;
-        tAch.kycFig += a_kycFig; tAch.kycIl += a_kycIl; tAch.kycNpa += a_kycNpa;
+        tAch.kycIgl += a_kycIgl; tAch.kycFig += a_kycFig; tAch.kycIl += a_kycIl;
 
         // Calc Row Achievement % for Avg
-        const rowCollPlan = p_ftod + p_slip + p_pnpa;
-        const rowCollAch = a_ftod + a_slip + a_pnpa;
+        const rowCollPlan = p_ftod + p_dpd130 + p_dpd3160 + p_dpd6190;
+        const rowCollAch = a_ftod + a_dpd130 + a_dpd3160 + a_dpd6190;
         const rowPct = rowCollPlan > 0 ? (rowCollAch / rowCollPlan) * 100 : 0;
 
         if (rowCollPlan > 0) {
@@ -2737,45 +2743,49 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
 
                 <!-- PLAN DATA -->
                 <td style="background: ${colors.ftod}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_ftod)}</td>
-                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_slip)}</td>
-                <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_pnpa)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_dpd130)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_dpd3160)}</td>
+                <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_dpd6190)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_npaAct)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_npaClose)}</td>
-                <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_od)}</td>
                 <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_ns)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_disbIglAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(p_disbIglAmt)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_disbFigAcc)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(p_disbFigAmt)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_disbIlAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(p_disbIlAmt)}</td>
+                <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_kycIgl)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_kycFig)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_kycIl)}</td>
-                <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(p_kycNpa)}</td>
 
                 <!-- SEPARATOR -->
                 <td style="background: #000; width: 2px; padding: 0;"></td>
 
                 <!-- ACHIEVEMENT DATA -->
                 <td style="background: ${colors.ftod}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_ftod)}</td>
-                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_slip)}</td>
-                <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_pnpa)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_dpd130)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_dpd3160)}</td>
+                <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_dpd6190)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_npaAct)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_npaClose)}</td>
-                <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_od)}</td>
                 <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_ns)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_disbIglAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(a_disbIglAmt)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_disbFigAcc)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(a_disbFigAmt)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_disbIlAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(a_disbIlAmt)}</td>
+                <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_kycIgl)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_kycFig)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_kycIl)}</td>
-                <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(a_kycNpa)}</td>
             </tr>
         `;
     });
 
     // --- EXECUTIVE SUMMARY METRICS ---
-    const totalCollPlan = tPlan.ftod + tPlan.slip + tPlan.pnpa;
-    const totalCollAch = tAch.ftod + tAch.slip + tAch.pnpa;
+    const totalCollPlan = tPlan.ftod + tPlan.dpd130 + tPlan.dpd3160 + tPlan.dpd6190;
+    const totalCollAch = tAch.ftod + tAch.dpd130 + tAch.dpd3160 + tAch.dpd6190;
     const totalCollPct = totalCollPlan > 0 ? Math.round((totalCollAch / totalCollPlan) * 100) : 0;
 
     const totalDisbAmt = tAch.disbIglAmt + tAch.disbIlAmt;
@@ -2817,49 +2827,54 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
 
             <!-- PLAN TOTALS -->
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.ftod)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.slip)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.pnpa)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.dpd130)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.dpd3160)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.dpd6190)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.npaAct)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.npaClose)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.od)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.ns)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.disbIglAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tPlan.disbIglAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.disbFigAcc)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tPlan.disbFigAmt)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.disbIlAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tPlan.disbIlAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.kycIgl)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.kycFig)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.kycIl)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tPlan.kycNpa)}</td>
 
              <!-- SEPARATOR -->
             <td style="background: #000;"></td>
 
             <!-- ACHIEVE TOTALS -->
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.ftod)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.slip)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.pnpa)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.dpd130)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.dpd3160)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.dpd6190)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.npaAct)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.npaClose)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.od)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.ns)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.disbIglAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tAch.disbIglAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.disbFigAcc)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tAch.disbFigAmt)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.disbIlAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: right;">${fmt(tAch.disbIlAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.kycIgl)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.kycFig)}</td>
             <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.kycIl)}</td>
-            <td style="background: #FFFF00; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center;">${fmt(tAch.kycNpa)}</td>
         </tr>
     `;
 
     // Category Headers Row (merged cells for grouped columns)
     const categoryHeaders = `
         <td style="background: ${colors.ftod}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">FTOD</td>
-        <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">${getSlippedLabel(state.systemDate)}</td>
-        <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">PNPA</td>
+        <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">1-30 DPD</td>
+        <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">31-60 DPD</td>
+        <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">61-90 DPD</td>
         <td colspan="2" style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">NPA Accounts</td>
-        <td colspan="2" style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">${getFiscalYearLabel(state.systemDate)}</td>
-        <td colspan="4" style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">Disbursement</td>
+        <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">FY NS</td>
+        <td colspan="6" style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">Disbursement</td>
         <td colspan="3" style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:9px; font-weight:bold;">KYC Sourcing</td>
     `;
 
@@ -2867,18 +2882,20 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
     const subHeaders = `
         <td style="background: ${colors.ftod}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Accounts</td>
         <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Accounts</td>
+        <td style="background: ${colors.slipped}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Accounts</td>
         <td style="background: ${colors.pnpa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Accounts</td>
         <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Activation</td>
         <td style="background: ${colors.npa}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">Closure</td>
-        <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">OD Acc</td>
         <td style="background: ${colors.fy2526}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">NS Acc</td>
-        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IGL&FIG Acc</td>
-        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IGL&FIG Amt</td>
+        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IGL Acc</td>
+        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IGL Amt</td>
+        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">FIG Acc</td>
+        <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">FIG Amt</td>
         <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IL Acc</td>
         <td style="background: ${colors.disb}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IL Amt</td>
-        <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">FIG & IGL</td>
+        <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IGL</td>
+        <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">FIG</td>
         <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">IL</td>
-        <td style="background: ${colors.kyc}; border: 1px solid ${colors.border}; padding: 3px 6px; text-align: center; font-size:8px;">NPA</td>
     `;
 
     return `
@@ -2898,14 +2915,14 @@ function generateCombinedReportHTML(title, level, planRows, achieveRows) {
                 <td rowspan="3" style="background: ${colors.white}; border: 1px solid ${colors.border}; padding: 4px 8px; text-align: center; vertical-align:middle; width: 120px;">${firstColHeader}</td>
 
                 <!-- PLAN HEADER -->
-                <td colspan="14" style="background: ${colors.planBg}; border: 1px solid ${colors.border}; padding: 6px; text-align: center; border-bottom: 2px solid ${colors.border}; color:black;">
+                <td colspan="13" style="background: ${colors.planBg}; border: 1px solid ${colors.border}; padding: 6px; text-align: center; border-bottom: 2px solid ${colors.border}; color:black;">
                     PLAN
                 </td>
 
                 <td rowspan="3" style="background: #000; width: 2px;"></td>
 
                 <!-- ACHIEVEMENT HEADER -->
-                <td colspan="14" style="background: ${colors.achieveBg}; border: 1px solid ${colors.border}; padding: 6px; text-align: center; border-bottom: 2px solid ${colors.border}; color:black;">
+                <td colspan="13" style="background: ${colors.achieveBg}; border: 1px solid ${colors.border}; padding: 6px; text-align: center; border-bottom: 2px solid ${colors.border}; color:black;">
                     ACHIEVEMENT
                 </td>
             </tr>
@@ -2958,11 +2975,11 @@ function generateReportHTML(title, level, rows, isPlan) {
 
     // Build Rows & Totals
     const totals = {
-        ftod: 0, slipped: 0, pnpa: 0,
+        ftod: 0, dpd130: 0, dpd3160: 0, dpd6190: 0,
         npaAct: 0, npaClose: 0,
-        od: 0, ns: 0,
-        disbIglAcc: 0, disbIglAmt: 0, disbIlAcc: 0, disbIlAmt: 0,
-        kycFig: 0, kycIl: 0, kycNpa: 0
+        ns: 0,
+        disbIglAcc: 0, disbIglAmt: 0, disbFigAcc: 0, disbFigAmt: 0, disbIlAcc: 0, disbIlAmt: 0,
+        kycIgl: 0, kycFig: 0, kycIl: 0
     };
 
     let bodyRows = '';
@@ -2978,51 +2995,54 @@ function generateReportHTML(title, level, rows, isPlan) {
 
         // Extract values using dynamic mapping
         const ftod = parseInt(d[f('ftod_plan', 'ftod_actual')]) || 0;
-        const slipped = parseInt(d[f('nov_25_Slipped_Accounts_Plan', 'nov_25_Slipped_Accounts_Actual')]) || 0;
-        const pnpa = parseInt(d[f('pnpa_plan', 'pnpa_actual')]) || 0;
+        const dpd130 = parseInt(d[f('dpd_1_30_plan', 'dpd_1_30_actual')]) || 0;
+        const dpd3160 = parseInt(d[f('dpd_31_60_plan', 'dpd_31_60_actual')]) || 0;
+        const dpd6190 = parseInt(d[f('dpd_61_90_plan', 'dpd_61_90_actual')]) || 0;
 
-        // NPA: For Plan, we assume the same columns exist in Plan table (from previous code analysis)
-        // If not, they will be 0.
         const npaAct = parseInt(d['npa_activation']) || 0;
         const npaClose = parseInt(d['npa_closure']) || 0;
 
-        const od = parseInt(d[f('fy_od_plan', 'fy_od_acc')]) || 0;
         const ns = parseInt(d[f('fy_non_start_plan', 'fy_non_start_acc')]) || 0;
 
         const disbIglAcc = parseInt(d['disb_igl_acc']) || 0;
         const disbIglAmt = parseInt(d['disb_igl_amt']) || 0;
+        const disbFigAcc = parseInt(d['disb_fig_acc']) || 0;
+        const disbFigAmt = parseInt(d['disb_fig_amt']) || 0;
         const disbIlAcc = parseInt(d['disb_il_acc']) || 0;
         const disbIlAmt = parseInt(d['disb_il_amt']) || 0;
 
-        const kycFig = parseInt(d['kyc_fig_igl']) || 0;
+        const kycIgl = parseInt(d['kyc_igl']) || 0;
+        const kycFig = parseInt(d['kyc_fig']) || 0;
         const kycIl = parseInt(d['kyc_il']) || 0;
-        const kycNpa = parseInt(d['kyc_npa']) || 0;
 
         // Sum Totals
-        totals.ftod += ftod; totals.slipped += slipped; totals.pnpa += pnpa;
+        totals.ftod += ftod; totals.dpd130 += dpd130; totals.dpd3160 += dpd3160; totals.dpd6190 += dpd6190;
         totals.npaAct += npaAct; totals.npaClose += npaClose;
-        totals.od += od; totals.ns += ns;
+        totals.ns += ns;
         totals.disbIglAcc += disbIglAcc; totals.disbIglAmt += disbIglAmt;
+        totals.disbFigAcc += disbFigAcc; totals.disbFigAmt += disbFigAmt;
         totals.disbIlAcc += disbIlAcc; totals.disbIlAmt += disbIlAmt;
-        totals.kycFig += kycFig; totals.kycIl += kycIl; totals.kycNpa += kycNpa;
+        totals.kycIgl += kycIgl; totals.kycFig += kycFig; totals.kycIl += kycIl;
 
         bodyRows += `
             <tr style="font-size: 10px; background: ${rowBgColor};">
                 <td style="background: ${rowBgColor}; border: 1px solid #000; padding: 3px 6px; text-align: left; font-weight: 600;">${row.name}</td>
                 <td style="background: ${colors.ftod}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(ftod)}</td>
-                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(slipped)}</td>
-                <td style="background: ${colors.pnpa}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(pnpa)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(dpd130)}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(dpd3160)}</td>
+                <td style="background: ${colors.pnpa}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(dpd6190)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(npaAct)}</td>
                 <td style="background: ${colors.npa}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(npaClose)}</td>
-                <td style="background: ${colors.fy2526}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(od)}</td>
                 <td style="background: ${colors.fy2526}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(ns)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(disbIglAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(disbIglAmt)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(disbFigAcc)}</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(disbFigAmt)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(disbIlAcc)}</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(disbIlAmt)}</td>
+                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(kycIgl)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(kycFig)}</td>
                 <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(kycIl)}</td>
-                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(kycNpa)}</td>
             </tr>
         `;
     });
@@ -3032,19 +3052,21 @@ function generateReportHTML(title, level, rows, isPlan) {
         <tr style="font-weight: bold; font-size: 10px; background: #FFFF00;">
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: left;">Grand Total</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.ftod)}</td>
-            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.slipped)}</td>
-            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.pnpa)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.dpd130)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.dpd3160)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.dpd6190)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.npaAct)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.npaClose)}</td>
-            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.od)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.ns)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.disbIglAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(totals.disbIglAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.disbFigAcc)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(totals.disbFigAmt)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.disbIlAcc)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: right;">${fmt(totals.disbIlAmt)}</td>
+            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.kycIgl)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.kycFig)}</td>
             <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.kycIl)}</td>
-            <td style="background: #FFFF00; border: 1px solid #000; padding: 3px 6px; text-align: center;">${fmt(totals.kycNpa)}</td>
         </tr>
     `;
 
@@ -3052,7 +3074,7 @@ function generateReportHTML(title, level, rows, isPlan) {
         <table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; width: auto; background:white;">
             <!-- Title -->
             <tr>
-                <td colspan="15" style="text-align: center; font-weight: bold; font-size: 14px; padding: 8px; background: ${colors.white}; border: 1px solid #000; color:black;">
+                <td colspan="17" style="text-align: center; font-weight: bold; font-size: 14px; padding: 8px; background: ${colors.white}; border: 1px solid #000; color:black;">
                     ${title}
                 </td>
             </tr>
@@ -3060,29 +3082,32 @@ function generateReportHTML(title, level, rows, isPlan) {
             <tr style="font-weight: bold; font-size: 10px;">
                 <td rowspan="2" style="background: ${colors.white}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">${firstColHeader}</td>
                 <td style="background: ${colors.ftod}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">FTOD</td>
-                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">${getSlippedLabel(state.systemDate)}</td>
-                <td style="background: ${colors.pnpa}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">PNPA</td>
+                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">1-30 DPD</td>
+                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">31-60 DPD</td>
+                <td style="background: ${colors.pnpa}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">61-90 DPD</td>
                 <td colspan="2" style="background: ${colors.npa}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">NPA Accounts</td>
-                <td colspan="2" style="background: ${colors.fy2526}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">${getFiscalYearLabel(state.systemDate)}</td>
-                <td colspan="4" style="background: ${colors.disb}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">Disbursement</td>
+                <td style="background: ${colors.fy2526}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">FY NS</td>
+                <td colspan="6" style="background: ${colors.disb}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">Disbursement</td>
                 <td colspan="3" style="background: ${colors.kyc}; border: 1px solid #000; padding: 4px 8px; text-align: center; color:black;">KYC Sourcing</td>
             </tr>
             <!-- Header Row 2: Sub-column Headers (matching Set Target) -->
             <tr style="font-weight: bold; font-size: 9px;">
                 <td style="background: ${colors.ftod}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">${suffix}</td>
                 <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">${suffix}</td>
+                <td style="background: ${colors.slipped}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">${suffix}</td>
                 <td style="background: ${colors.pnpa}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">${suffix}</td>
                 <td style="background: ${colors.npa}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">Activation</td>
                 <td style="background: ${colors.npa}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">Closure</td>
-                <td style="background: ${colors.fy2526}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">OD Acc</td>
                 <td style="background: ${colors.fy2526}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">NS Acc</td>
-                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IGL&FIG Acc</td>
-                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IGL&FIG Amt</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IGL Acc</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IGL Amt</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">FIG Acc</td>
+                <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">FIG Amt</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IL Acc</td>
                 <td style="background: ${colors.disb}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IL Amt</td>
-                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">FIG & IGL</td>
+                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IGL</td>
+                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">FIG</td>
                 <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">IL</td>
-                <td style="background: ${colors.kyc}; border: 1px solid #000; padding: 3px 6px; text-align: center; color:black;">NPA</td>
             </tr>
             ${bodyRows}
             ${totalRow}
@@ -3624,7 +3649,7 @@ function renderCEOPlanDashboard(stats, buffer) {
             <div>
                 <div class="metric-title">Total Collection Target</div>
                 <div class="metric-value">${stats.totalCollectionPlan.toLocaleString()}</div>
-                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Accounts (FTOD + Lived + PNPA)</div>
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Accounts (FTOD + 1-30 + 31-60 + 61-90 DPD)</div>
             </div>
         </div>
 
@@ -3668,8 +3693,9 @@ function renderCEOPlanDashboard(stats, buffer) {
             </div>
              <div style="display:flex; flex-direction:column; gap:16px;">
                 ${renderPlanBar('FTOD Accounts', stats.ftodPlan, stats.totalCollectionPlan, '#6366F1')}
-                ${renderPlanBar('Slipped (Lived)', stats.livedPlan, stats.totalCollectionPlan, '#F59E0B')}
-                ${renderPlanBar('PNPA Accounts', stats.pnpaPlan, stats.totalCollectionPlan, '#EF4444')}
+                ${renderPlanBar('1-30 DPD', stats.dpd130Plan, stats.totalCollectionPlan, '#F59E0B')}
+                ${renderPlanBar('31-60 DPD', stats.dpd3160Plan, stats.totalCollectionPlan, '#FB923C')}
+                ${renderPlanBar('61-90 DPD', stats.dpd6190Plan, stats.totalCollectionPlan, '#EF4444')}
                 ${renderPlanBar('NPA Accounts', stats.npaTotalPlan, stats.totalCollectionPlan, '#EC4899')}
             </div>
         </div>
@@ -3679,9 +3705,9 @@ function renderCEOPlanDashboard(stats, buffer) {
                 <div class="chart-title">👤 KYC Sourcing Plan</div>
             </div>
              <div style="display:flex; flex-direction:column; gap:16px;">
-                ${renderPlanBar('IGL & FIG', stats.kycFigIglPlan, stats.kycTotal, '#F59E0B')}
+                ${renderPlanBar('IGL', stats.kycIglPlan, stats.kycTotal, '#F59E0B')}
+                ${renderPlanBar('FIG', stats.kycFigPlan, stats.kycTotal, '#6366F1')}
                 ${renderPlanBar('IL', stats.kycIlPlan, stats.kycTotal, '#3B82F6')}
-                ${renderPlanBar('For NPA', stats.kycNpaPlan, stats.kycTotal, '#EF4444')}
             </div>
         </div>
 
@@ -3695,7 +3721,8 @@ function renderCEOPlanDashboard(stats, buffer) {
                 <div>
                     <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">By Amount (₹ ${(stats.totalDisbursementPlan / 10000000).toFixed(2)} Cr)</div>
                     <div style="display:flex; flex-direction:column; gap:12px;">
-                        ${renderPlanBar('IGL & FIG Amount', stats.disbIglAmtPlan, stats.totalDisbursementPlan, '#10B981', true)}
+                        ${renderPlanBar('IGL Amount', stats.disbIglAmtPlan, stats.totalDisbursementPlan, '#10B981', true)}
+                        ${renderPlanBar('FIG Amount', stats.disbFigAmtPlan, stats.totalDisbursementPlan, '#6366F1', true)}
                         ${renderPlanBar('IL Amount', stats.disbIlAmtPlan, stats.totalDisbursementPlan, '#8B5CF6', true)}
                     </div>
                 </div>
@@ -3705,6 +3732,7 @@ function renderCEOPlanDashboard(stats, buffer) {
                     <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px; padding-top:12px; border-top:1px dashed var(--border-color);">By Accounts (${stats.totalDisbAccPlan.toLocaleString()})</div>
                     <div style="display:flex; flex-direction:column; gap:12px;">
                         ${renderPlanBar('IGL Accounts', stats.disbIglAccPlan, stats.totalDisbAccPlan, '#34D399')}
+                        ${renderPlanBar('FIG Accounts', stats.disbFigAccPlan, stats.totalDisbAccPlan, '#818CF8')}
                         ${renderPlanBar('IL Accounts', stats.disbIlAccPlan, stats.totalDisbAccPlan, '#A78BFA')}
                     </div>
                 </div>
@@ -3794,7 +3822,7 @@ function renderCEOReviewDashboard(stats, buffer) {
                     </div>
                     <div>
                         <div class="metric-title">Collection Achievement</div>
-                        <div class="metric-value">₹${((stats.ftodAchieve + stats.livedAchieve + stats.pnpaAchieve) / 100000).toFixed(1)}L</div>
+                        <div class="metric-value">₹${((stats.ftodAchieve + stats.dpd130Achieve + stats.dpd3160Achieve + stats.dpd6190Achieve) / 100000).toFixed(1)}L</div>
                         <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">vs Plan: ₹${(stats.totalCollectionPlan / 100000).toFixed(1)}L</div>
                     </div>
                 </div>
@@ -3809,8 +3837,9 @@ function renderCEOReviewDashboard(stats, buffer) {
                     </div>
                     <div class="collection-grid">
                         <div class="clickable-section" onclick="openDetailModal('ftod')">${renderCollectionMetric('FTOD', stats.ftodPlan, stats.ftodAchieve)}</div>
-                        <div class="clickable-section" onclick="openDetailModal('slipped')">${renderCollectionMetric('Slipped (LIVED)', stats.livedPlan, stats.livedAchieve)}</div>
-                        <div class="clickable-section" onclick="openDetailModal('pnpa')">${renderCollectionMetric('PNPA', stats.pnpaPlan, stats.pnpaAchieve)}</div>
+                        <div class="clickable-section" onclick="openDetailModal('dpd_1_30')">${renderCollectionMetric('1-30 DPD', stats.dpd130Plan, stats.dpd130Achieve)}</div>
+                        <div class="clickable-section" onclick="openDetailModal('dpd_31_60')">${renderCollectionMetric('31-60 DPD', stats.dpd3160Plan, stats.dpd3160Achieve)}</div>
+                        <div class="clickable-section" onclick="openDetailModal('dpd_61_90')">${renderCollectionMetric('61-90 DPD', stats.dpd6190Plan, stats.dpd6190Achieve)}</div>
                         <div class="clickable-section" onclick="openDetailModal('npa')">${renderNPAMovement(stats.npaActivation, stats.npaClosure)}</div>
                     </div>
                 </div>
@@ -3831,13 +3860,19 @@ function renderCEOReviewDashboard(stats, buffer) {
                         <div class="chart-title">💰 Disbursement Summary</div>
                         <div style="font-size:18px; font-weight:700; color:var(--success);">₹${(stats.totalDisbursementAchieve / 10000000).toFixed(2)} Cr</div>
                     </div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px 0;">
-                        
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px; padding:16px 0;">
+
                         <div class="clickable-section" onclick="openDetailModal('disb_igl')" style="background:var(--bg-body); padding:16px; border-radius:12px; text-align:center; cursor:pointer;">
-                            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">IGL & FIG</div>
+                            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">IGL</div>
                             <div style="font-size:20px; font-weight:700; color:#10B981;">${stats.disbIglAccAchieve}</div>
                             <div style="font-size:11px; color:var(--text-secondary);">₹${(stats.disbIglAmtAchieve / 100000).toFixed(1)}L</div>
                              <div style="font-size:10px; color:var(--text-secondary); margin-top:4px;">Plan: ₹${(stats.disbIglAmtPlan / 100000).toFixed(1)}L</div>
+                        </div>
+                        <div class="clickable-section" onclick="openDetailModal('disb_fig')" style="background:var(--bg-body); padding:16px; border-radius:12px; text-align:center; cursor:pointer;">
+                            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">FIG</div>
+                            <div style="font-size:20px; font-weight:700; color:#6366F1;">${stats.disbFigAccAchieve}</div>
+                            <div style="font-size:11px; color:var(--text-secondary);">₹${(stats.disbFigAmtAchieve / 100000).toFixed(1)}L</div>
+                             <div style="font-size:10px; color:var(--text-secondary); margin-top:4px;">Plan: ₹${(stats.disbFigAmtPlan / 100000).toFixed(1)}L</div>
                         </div>
                         <div class="clickable-section" onclick="openDetailModal('disb_il')" style="background:var(--bg-body); padding:16px; border-radius:12px; text-align:center; cursor:pointer;">
                             <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">IL</div>
@@ -3845,10 +3880,10 @@ function renderCEOReviewDashboard(stats, buffer) {
                             <div style="font-size:11px; color:var(--text-secondary);">₹${(stats.disbIlAmtAchieve / 100000).toFixed(1)}L</div>
                              <div style="font-size:10px; color:var(--text-secondary); margin-top:4px;">Plan: ₹${(stats.disbIlAmtPlan / 100000).toFixed(1)}L</div>
                         </div>
-                        <div class="clickable-section" onclick="openDetailModal('disbursement')" style="background:var(--primary-light); padding:16px; border-radius:12px; text-align:center; cursor:pointer; grid-column: span 2;">
+                        <div class="clickable-section" onclick="openDetailModal('disbursement')" style="background:var(--primary-light); padding:16px; border-radius:12px; text-align:center; cursor:pointer; grid-column: span 3;">
                             <div style="font-size:11px; color:var(--primary-accent); margin-bottom:4px;">Total Accounts</div>
-                            <div style="font-size:20px; font-weight:700; color:var(--primary-accent);">${stats.disbIglAccAchieve + stats.disbIlAccAchieve}</div>
-                            <div style="font-size:11px; color:var(--text-secondary);">Plan: ${stats.disbIglAccPlan + stats.disbIlAccPlan}</div>
+                            <div style="font-size:20px; font-weight:700; color:var(--primary-accent);">${stats.disbIglAccAchieve + stats.disbFigAccAchieve + stats.disbIlAccAchieve}</div>
+                            <div style="font-size:11px; color:var(--text-secondary);">Plan: ${stats.disbIglAccPlan + stats.disbFigAccPlan + stats.disbIlAccPlan}</div>
                         </div>
                     </div>
                 </div>
@@ -3906,16 +3941,16 @@ function renderCEOReviewDashboard(stats, buffer) {
                     </div>
                     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; padding:16px 0;">
                         <div style="background:linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); padding:20px 16px; border-radius:12px; text-align:center;">
-                            <div style="font-size:24px; font-weight:700; color:#6366F1;">${stats.kycFigIgl}</div>
-                            <div style="font-size:11px; color:#4F46E5; margin-top:4px;">FIG & IGL</div>
+                            <div style="font-size:24px; font-weight:700; color:#6366F1;">${stats.kycIgl}</div>
+                            <div style="font-size:11px; color:#4F46E5; margin-top:4px;">IGL</div>
+                        </div>
+                        <div style="background:linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); padding:20px 16px; border-radius:12px; text-align:center;">
+                            <div style="font-size:24px; font-weight:700; color:#059669;">${stats.kycFig}</div>
+                            <div style="font-size:11px; color:#047857; margin-top:4px;">FIG</div>
                         </div>
                         <div style="background:linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); padding:20px 16px; border-radius:12px; text-align:center;">
                             <div style="font-size:24px; font-weight:700; color:#D97706;">${stats.kycIl}</div>
                             <div style="font-size:11px; color:#B45309; margin-top:4px;">IL</div>
-                        </div>
-                        <div style="background:linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); padding:20px 16px; border-radius:12px; text-align:center;">
-                            <div style="font-size:24px; font-weight:700; color:#059669;">${stats.kycNpa}</div>
-                            <div style="font-size:11px; color:#047857; margin-top:4px;">NPA</div>
                         </div>
                     </div>
                 </div>
@@ -3985,11 +4020,13 @@ function calculateAggregateStatsForBranches(branchNames) {
         plansSet: 0,
         completed: 0,
         ftodPlan: 0, ftodAchieve: 0,
-        livedPlan: 0, livedAchieve: 0,
-        pnpaPlan: 0, pnpaAchieve: 0,
+        dpd130Plan: 0, dpd130Achieve: 0,
+        dpd3160Plan: 0, dpd3160Achieve: 0,
+        dpd6190Plan: 0, dpd6190Achieve: 0,
         collPlan: 0, collAchieve: 0,
         disbPlan: 0, disbAchieve: 0,
         disbIglAmtPlan: 0, disbIglAmtAchieve: 0,
+        disbFigAmtPlan: 0, disbFigAmtAchieve: 0,
         disbIlAmtPlan: 0, disbIlAmtAchieve: 0,
         kyc: 0
     };
@@ -4012,40 +4049,48 @@ function calculateAggregateStatsForBranches(branchNames) {
         if (hasPlan) {
             const t = entry.target;
             const ftod = safeInt(t.ftod_plan);
-            const lived = safeInt(t.nov_25_Slipped_Accounts_Plan);
-            const pnpa = safeInt(t.pnpa_plan);
+            const dpd130 = safeInt(t.dpd_1_30_plan);
+            const dpd3160 = safeInt(t.dpd_31_60_plan);
+            const dpd6190 = safeInt(t.dpd_61_90_plan);
 
             stats.ftodPlan += ftod;
-            stats.livedPlan += lived;
-            stats.pnpaPlan += pnpa;
-            stats.collPlan += (ftod + lived + pnpa);
+            stats.dpd130Plan += dpd130;
+            stats.dpd3160Plan += dpd3160;
+            stats.dpd6190Plan += dpd6190;
+            stats.collPlan += (ftod + dpd130 + dpd3160 + dpd6190);
 
             const iglAmt = safeFloat(t.disb_igl_amt);
+            const figAmt = safeFloat(t.disb_fig_amt);
             const ilAmt = safeFloat(t.disb_il_amt);
             stats.disbIglAmtPlan += iglAmt;
+            stats.disbFigAmtPlan += figAmt;
             stats.disbIlAmtPlan += ilAmt;
-            stats.disbPlan += (iglAmt + ilAmt);
+            stats.disbPlan += (iglAmt + figAmt + ilAmt);
         }
 
         // Achievement Data
         if (hasAchieve) {
             const a = entry.achievement;
-            const ftod = safeInt(a.ftod_actual); // Note: Assuming ftod_actual is correct based on previous fix discussion
-            const lived = safeInt(a.nov_25_Slipped_Accounts_Actual);
-            const pnpa = safeInt(a.pnpa_actual);
+            const ftod = safeInt(a.ftod_actual);
+            const dpd130 = safeInt(a.dpd_1_30_actual);
+            const dpd3160 = safeInt(a.dpd_31_60_actual);
+            const dpd6190 = safeInt(a.dpd_61_90_actual);
 
             stats.ftodAchieve += ftod;
-            stats.livedAchieve += lived;
-            stats.pnpaAchieve += pnpa;
-            stats.collAchieve += (ftod + lived + pnpa);
+            stats.dpd130Achieve += dpd130;
+            stats.dpd3160Achieve += dpd3160;
+            stats.dpd6190Achieve += dpd6190;
+            stats.collAchieve += (ftod + dpd130 + dpd3160 + dpd6190);
 
             const iglAmt = safeFloat(a.disb_igl_amt);
+            const figAmt = safeFloat(a.disb_fig_amt);
             const ilAmt = safeFloat(a.disb_il_amt);
             stats.disbIglAmtAchieve += iglAmt;
+            stats.disbFigAmtAchieve += figAmt;
             stats.disbIlAmtAchieve += ilAmt;
-            stats.disbAchieve += (iglAmt + ilAmt);
+            stats.disbAchieve += (iglAmt + figAmt + ilAmt);
 
-            stats.kyc += (safeInt(a.kyc_fig_igl) + safeInt(a.kyc_il) + safeInt(a.kyc_npa));
+            stats.kyc += (safeInt(a.kyc_igl) + safeInt(a.kyc_fig) + safeInt(a.kyc_il));
         }
     });
 
@@ -4054,59 +4099,16 @@ function calculateAggregateStatsForBranches(branchNames) {
 
 // --- DM SUMMARY STATS ---
 function calculateDMSummaryStats(branchNames) {
-    let stats = {
-        disbAcc: 0, disbAmt: 0,
-        ftodPlan: 0, ftodAchieve: 0,
-        slipPlan: 0, slipAchieve: 0,
-        npaClosePlan: 0, npaCloseAchieve: 0,
-        pnpaPlan: 0, pnpaAchieve: 0
-    };
-
     const safeInt = (v) => parseInt(v) || 0;
     const safeFloat = (v) => parseFloat(v) || 0;
 
-    branchNames.forEach(br => {
-        const entry = state.branchDetails[br];
-        if (!entry) return;
-
-        // Plan Data
-        if (entry.target) {
-            const t = entry.target;
-            stats.disbAcc += (safeInt(t.disb_igl_acc) + safeInt(t.disb_il_acc));
-            stats.disbAmt += (safeFloat(t.disb_igl_amt) + safeFloat(t.disb_il_amt));
-
-            stats.ftodPlan += safeInt(t.ftod_plan);
-            stats.slipPlan += safeInt(t.nov_25_Slipped_Accounts_Plan);
-            stats.npaClosePlan += safeInt(t.npa_closure);
-            stats.pnpaPlan += safeInt(t.pnpa_plan);
-        }
-
-        // Achievement Data
-        if (entry.achievement) {
-            const a = entry.achievement;
-            // NOTE: Using Plan for Disbursement Acc/Amt in "Db done" as per request usually asks for achievement but defaulting to plan if actual not reliable, 
-            // BUT standard is usually Achievement. Let's check if achievement has these fields. 
-            // Looking at `downloadPlanReport` mappings (lines 1358+ for plan), `renderCEOPlanDashboard` uses `disbIglAmtPlan`.
-            // Let's assume "Db done" means Achievement if available, else Plan? Or usually "Total Db done" implies actual closed business.
-            // Let's use ACHIEVEMENT for "Db done" if we want "Db Done". 
-            // Re-reading User Request: "total Db done {a/c and amount}"
-            // I will sum Actuals.
-
-            stats.disbAcc = (stats.disbAcc - (safeInt(entry.target?.disb_igl_acc) + safeInt(entry.target?.disb_il_acc))) + (safeInt(a.disb_igl_acc) + safeInt(a.disb_il_acc)); // Replacing Plan with Actual? No, let's just count Actuals if we assume "Done" = Actual. 
-            // Actually, safe way: Accumulate Actuals separately if needed. 
-            // Let's stick to the previous pattern: use Achievement for "Done".
-            // Wait, I accumulated Plan above. Let me correct logic: 
-            // We want "Done" -> Actual.
-        }
-    });
-
-    // RESET and RE-LOOP to be clean
-    stats = {
+    let stats = {
         disbAcc: 0, disbAmt: 0,
         ftodPlan: 0, ftodAchieve: 0,
-        slipPlan: 0, slipAchieve: 0,
-        npaClosePlan: 0, npaCloseAchieve: 0,
-        pnpaPlan: 0, pnpaAchieve: 0
+        dpd130Plan: 0, dpd130Achieve: 0,
+        dpd3160Plan: 0, dpd3160Achieve: 0,
+        dpd6190Plan: 0, dpd6190Achieve: 0,
+        npaClosePlan: 0, npaCloseAchieve: 0
     };
 
     branchNames.forEach(br => {
@@ -4117,21 +4119,23 @@ function calculateDMSummaryStats(branchNames) {
         if (entry.target) {
             const t = entry.target;
             stats.ftodPlan += safeInt(t.ftod_plan);
-            stats.slipPlan += safeInt(t.nov_25_Slipped_Accounts_Plan);
+            stats.dpd130Plan += safeInt(t.dpd_1_30_plan);
+            stats.dpd3160Plan += safeInt(t.dpd_31_60_plan);
+            stats.dpd6190Plan += safeInt(t.dpd_61_90_plan);
             stats.npaClosePlan += safeInt(t.npa_closure);
-            stats.pnpaPlan += safeInt(t.pnpa_plan);
         }
 
         // ACTUALS
         if (entry.achievement) {
             const a = entry.achievement;
-            stats.disbAcc += (safeInt(a.disb_igl_acc) + safeInt(a.disb_il_acc));
-            stats.disbAmt += (safeFloat(a.disb_igl_amt) + safeFloat(a.disb_il_amt));
+            stats.disbAcc += (safeInt(a.disb_igl_acc) + safeInt(a.disb_fig_acc) + safeInt(a.disb_il_acc));
+            stats.disbAmt += (safeFloat(a.disb_igl_amt) + safeFloat(a.disb_fig_amt) + safeFloat(a.disb_il_amt));
 
             stats.ftodAchieve += safeInt(a.ftod_actual);
-            stats.slipAchieve += safeInt(a.nov_25_Slipped_Accounts_Actual);
+            stats.dpd130Achieve += safeInt(a.dpd_1_30_actual);
+            stats.dpd3160Achieve += safeInt(a.dpd_31_60_actual);
+            stats.dpd6190Achieve += safeInt(a.dpd_61_90_actual);
             stats.npaCloseAchieve += safeInt(a.npa_closure);
-            stats.pnpaAchieve += safeInt(a.pnpa_actual);
         }
     });
 
@@ -4186,8 +4190,9 @@ function renderHierarchySummaryCard(stats, title) {
                     </div>
                     <div style="margin-top:6px; padding-top:4px; border-top:1px dashed var(--border-color);">
                         ${subRow("FTOD Accounts", stats.ftodAchieve, stats.ftodPlan)}
-                        ${subRow(getSlippedLabel(state.systemDate), stats.livedAchieve, stats.livedPlan)}
-                        ${subRow("PNPA Accounts", stats.pnpaAchieve, stats.pnpaPlan)}
+                        ${subRow("1-30 DPD", stats.dpd130Achieve, stats.dpd130Plan)}
+                        ${subRow("31-60 DPD", stats.dpd3160Achieve, stats.dpd3160Plan)}
+                        ${subRow("61-90 DPD", stats.dpd6190Achieve, stats.dpd6190Plan)}
                     </div>
                 </div>
 
@@ -4202,7 +4207,8 @@ function renderHierarchySummaryCard(stats, title) {
                         <div style="height:100%; width:${disbPct}%; background:${disbPct >= 100 ? '#10B981' : '#8B5CF6'};"></div>
                     </div>
                     <div style="margin-top:6px; padding-top:4px; border-top:1px dashed var(--border-color);">
-                        ${subRow("IGL & FIG (Amt)", stats.disbIglAmtAchieve, stats.disbIglAmtPlan, true)}
+                        ${subRow("IGL (Amt)", stats.disbIglAmtAchieve, stats.disbIglAmtPlan, true)}
+                        ${subRow("FIG (Amt)", stats.disbFigAmtAchieve, stats.disbFigAmtPlan, true)}
                         ${subRow("IL (Amt)", stats.disbIlAmtAchieve, stats.disbIlAmtPlan, true)}
                     </div>
                 </div>
@@ -4394,14 +4400,19 @@ function createViewSummary(targetData, achieveData) {
         metricRow('Collection Plan', 'ftod_plan')
     )}
                             
-                            ${section(getSlippedLabel(state.systemDate),
-        metricRow('Actual Account', 'nov_25_Slipped_Accounts_Actual', null, true) +
-        metricRow('Collection Plan', 'nov_25_Slipped_Accounts_Plan')
+                            ${section('1-30 DPD',
+        metricRow('Actual Account', 'dpd_1_30_actual', null, true) +
+        metricRow('Collection Plan', 'dpd_1_30_plan')
     )}
-                            
-                            ${section('PNPA Accounts',
-        metricRow('Actual PNPA', 'pnpa_actual', null, true) +
-        metricRow('Collection Plan', 'pnpa_plan')
+
+                            ${section('31-60 DPD',
+        metricRow('Actual Account', 'dpd_31_60_actual', null, true) +
+        metricRow('Collection Plan', 'dpd_31_60_plan')
+    )}
+
+                            ${section('61-90 DPD',
+        metricRow('Actual Account', 'dpd_61_90_actual', null, true) +
+        metricRow('Collection Plan', 'dpd_61_90_plan')
     )}
                             
                             ${section('NPA Accounts',
@@ -4410,25 +4421,25 @@ function createViewSummary(targetData, achieveData) {
     )}
                         </div>
                         <div>
-                            ${section(getFiscalYearLabel(state.systemDate) + ' Accounts',
-        metricRow('Total OD Accounts', 'fy_od_acc', null, true) +
-        metricRow('OD Collection Plan', 'fy_od_plan') +
+                            ${section('FY Non-Starter Accounts',
         metricRow('Non-Starter Accounts', 'fy_non_start_acc', null, true) +
         metricRow('Non-Starter Plan', 'fy_non_start_plan')
     )}
                             
                             ${section('Disbursement',
 
-        metricRow('IGL & FIG (Acc)', 'disb_igl_acc') +
-        metricRow('IGL & FIG (Amt)', 'disb_igl_amt') +
+        metricRow('IGL (Acc)', 'disb_igl_acc') +
+        metricRow('IGL (Amt)', 'disb_igl_amt') +
+        metricRow('FIG (Acc)', 'disb_fig_acc') +
+        metricRow('FIG (Amt)', 'disb_fig_amt') +
         metricRow('IL (Acc)', 'disb_il_acc') +
         metricRow('IL (Amt)', 'disb_il_amt')
     )}
-                            
+
                             ${section('KYC Sourcing',
-        metricRow('FIG and IGL', 'kyc_fig_igl') +
-        metricRow('IL', 'kyc_il') +
-        metricRow('NPA', 'kyc_npa')
+        metricRow('IGL', 'kyc_igl') +
+        metricRow('FIG', 'kyc_fig') +
+        metricRow('IL', 'kyc_il')
     )}
                         </div>
                     </div>
@@ -4502,6 +4513,34 @@ async function redirectToYesterdayAchievement() {
     openBranchModal(branchName);
 }
 
+// Check if monthly actual fields have already been set for this branch in the current month
+async function checkMonthlyActuals(branchName, systemDate) {
+    try {
+        const result = await neonQuery(
+            `SELECT dpd_1_30_actual, dpd_31_60_actual, dpd_61_90_actual, date
+             FROM daily_reports
+             WHERE branch_name = $1
+               AND date >= date_trunc('month', $2::date)
+               AND date < date_trunc('month', $2::date) + interval '1 month'
+               AND date != $2
+               AND (dpd_1_30_actual IS NOT NULL OR dpd_31_60_actual IS NOT NULL OR dpd_61_90_actual IS NOT NULL)
+             ORDER BY date ASC LIMIT 1`,
+            [branchName, systemDate]
+        );
+        if (result && result.data && result.data.length > 0) {
+            return result.data[0];
+        }
+        // Also check tagged template result format
+        if (result && Array.isArray(result) && result.length > 0) {
+            return result[0];
+        }
+        return null;
+    } catch (e) {
+        console.warn('Monthly actuals check failed:', e);
+        return null;
+    }
+}
+
 async function openBranchModal(branchName) {
     currentEditingBranch = branchName;
     document.getElementById("modalBranchTitle").textContent = `${branchName} - Details`;
@@ -4534,27 +4573,18 @@ async function openBranchModal(branchName) {
     };
 
     // Update dynamic titles
-    const prevMonth = getPreviousMonthName(state.systemDate);
-    const targetDate = state.systemDate ? new Date(state.systemDate) : new Date();
-    const prevMonthDate = new Date(targetDate);
-    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-    const slippedYear = String(prevMonthDate.getFullYear()).slice(-2);
-    const slippedTitleEl = document.getElementById('slippedSectionTitle');
-    if (slippedTitleEl) {
-        slippedTitleEl.textContent = `${prevMonth.toUpperCase()}-${slippedYear} SLIPPED ACCOUNT`;
-    }
     const fySectionEl = document.getElementById('fySectionTitle');
     if (fySectionEl) {
-        fySectionEl.textContent = `${getFiscalYearLabel(state.systemDate)} Accounts`;
+        fySectionEl.textContent = 'FY Non-Starter Accounts';
     }
 
     if (reportState === 'ACHIEVEMENT') {
         updateLabel('ftod_plan', 'Achievement');
-        updateLabel('nov_25_Slipped_Accounts_Plan', 'Achievement');
-        updateLabel('pnpa_plan', 'Achievement');
+        updateLabel('dpd_1_30_plan', 'Achievement');
+        updateLabel('dpd_31_60_plan', 'Achievement');
+        updateLabel('dpd_61_90_plan', 'Achievement');
 
-        // Specific labels for OD/Non-Starter
-        updateLabel('fy_od_plan', 'TOTAL OD Achievement');
+        // Specific labels for Non-Starter
         updateLabel('fy_non_start_plan', 'NON-STARTER Achievement');
 
         // Update Section Titles
@@ -4565,16 +4595,16 @@ async function openBranchModal(branchName) {
         if (lblKyc) lblKyc.textContent = "KYC SOURCING Achievement";
 
         // Hide Actuals and set to 0
-        ['ftod_actual', 'nov_25_Slipped_Accounts_Actual', 'pnpa_actual', 'fy_od_acc', 'fy_non_start_acc'].forEach(id => {
+        ['ftod_actual', 'dpd_1_30_actual', 'dpd_31_60_actual', 'dpd_61_90_actual', 'fy_non_start_acc'].forEach(id => {
             toggleRow(id, false);
             const el = document.getElementById(id);
             if (el) el.value = "0";
         });
     } else {
         updateLabel('ftod_plan', 'FTOD Collection Plan');
-        updateLabel('nov_25_Slipped_Accounts_Plan', getSlippedLabel(state.systemDate));
-        updateLabel('pnpa_plan', 'PNPA Collection Plan');
-        updateLabel('fy_od_plan', 'COLLECTION PLAN');
+        updateLabel('dpd_1_30_plan', 'Collection Plan');
+        updateLabel('dpd_31_60_plan', 'Collection Plan');
+        updateLabel('dpd_61_90_plan', 'Collection Plan');
         updateLabel('fy_non_start_plan', 'COLLECTION PLAN');
 
         // Reset Section Titles
@@ -4585,21 +4615,22 @@ async function openBranchModal(branchName) {
         if (lblKyc) lblKyc.textContent = "KYC SOURCING";
 
         // Show Actuals
-        ['ftod_actual', 'nov_25_Slipped_Accounts_Actual', 'pnpa_actual', 'fy_od_acc', 'fy_non_start_acc'].forEach(id => {
+        ['ftod_actual', 'dpd_1_30_actual', 'dpd_31_60_actual', 'dpd_61_90_actual', 'fy_non_start_acc'].forEach(id => {
             toggleRow(id, true);
         });
     }
 
     // Helper lists
     const planFields = [
-        'ftod_plan', 'nov_25_Slipped_Accounts_Plan', 'pnpa_plan', 'fy_od_plan', 'fy_non_start_plan'
+        'ftod_plan', 'dpd_1_30_plan', 'dpd_31_60_plan', 'dpd_61_90_plan', 'fy_non_start_plan'
     ];
     const achieveFields = [
-        'ftod_actual', 'nov_25_Slipped_Accounts_Actual', 'pnpa_actual', 'npa_activation', 'npa_closure',
-        'fy_od_acc', 'fy_non_start_acc',
+        'ftod_actual', 'dpd_1_30_actual', 'dpd_31_60_actual', 'dpd_61_90_actual', 'npa_activation', 'npa_closure',
+        'fy_non_start_acc',
         'disb_igl_acc', 'disb_igl_amt',
+        'disb_fig_acc', 'disb_fig_amt',
         'disb_il_acc', 'disb_il_amt',
-        'kyc_fig_igl', 'kyc_il', 'kyc_npa'
+        'kyc_igl', 'kyc_fig', 'kyc_il'
     ];
 
     const modalContainer = document.querySelector(".modal-container");
@@ -4643,6 +4674,27 @@ async function openBranchModal(branchName) {
             const el = document.getElementById(id);
             el.value = "";
             el.disabled = false; // UNLOCKED
+        });
+
+        // Once-per-month lock: check if actual fields were already set this month on a different date
+        checkMonthlyActuals(branchName, state.systemDate).then(existingRow => {
+            if (!existingRow) return;
+            const lockedFields = ['dpd_1_30_actual', 'dpd_31_60_actual', 'dpd_61_90_actual'];
+            const lockedDate = existingRow.date;
+            lockedFields.forEach(fieldId => {
+                const val = existingRow[fieldId];
+                if (val !== null && val !== undefined) {
+                    const el = document.getElementById(fieldId);
+                    if (el) {
+                        el.value = val;
+                        el.disabled = true;
+                        el.style.backgroundColor = '#FFFDE7';
+                        el.style.border = '2px solid #F59E0B';
+                        el.style.cursor = 'not-allowed';
+                        el.title = `Already set for this month (on ${lockedDate})`;
+                    }
+                }
+            });
         });
     }
     else if (reportState === 'ACHIEVEMENT') {
@@ -4695,9 +4747,9 @@ async function openBranchModal(branchName) {
         // Define mappings
         const pairs = {
             'ftod_actual': 'ftod_plan',
-            'nov_25_Slipped_Accounts_Actual': 'nov_25_Slipped_Accounts_Plan',
-            'pnpa_actual': 'pnpa_plan',
-            'fy_od_acc': 'fy_od_plan',
+            'dpd_1_30_actual': 'dpd_1_30_plan',
+            'dpd_31_60_actual': 'dpd_31_60_plan',
+            'dpd_61_90_actual': 'dpd_61_90_plan',
             'fy_non_start_acc': 'fy_non_start_plan'
         };
 
@@ -4725,7 +4777,7 @@ async function openBranchModal(branchName) {
             }
         });
 
-        // Disbursement fields (disb_igl_acc, disb_igl_amt, disb_il_acc, disb_il_amt) are now unblocked
+        // Disbursement fields (disb_igl_acc, disb_igl_amt, disb_fig_acc, disb_fig_amt, disb_il_acc, disb_il_amt) are now unblocked
         // and can be edited in achievement mode
     }
     else {
@@ -4769,8 +4821,8 @@ async function openBranchModal(branchName) {
     }
 
     // Add Indian number formatting to amount fields
-    const amountFields = ['ftod_plan', 'nov_25_Slipped_Accounts_Plan', 'pnpa_plan',
-                          'fy_od_plan', 'fy_non_start_plan', 'disb_igl_amt', 'disb_il_amt'];
+    const amountFields = ['ftod_plan', 'dpd_1_30_plan', 'dpd_31_60_plan', 'dpd_61_90_plan',
+                          'fy_non_start_plan', 'disb_igl_amt', 'disb_fig_amt', 'disb_il_amt'];
     amountFields.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -4815,12 +4867,14 @@ async function saveBranchDetails(andNext) {
     // If Mode ACHIEVEMENT: Capture Actuals, Keep Plan from Plan Record
 
     const allFields = [
-        'ftod_actual', 'ftod_plan', 'nov_25_Slipped_Accounts_Actual', 'nov_25_Slipped_Accounts_Plan',
-        'pnpa_actual', 'pnpa_plan', 'npa_activation', 'npa_closure',
-        'fy_od_acc', 'fy_od_plan', 'fy_non_start_acc', 'fy_non_start_plan',
+        'ftod_actual', 'ftod_plan', 'dpd_1_30_actual', 'dpd_1_30_plan',
+        'dpd_31_60_actual', 'dpd_31_60_plan', 'dpd_61_90_actual', 'dpd_61_90_plan',
+        'npa_activation', 'npa_closure',
+        'fy_non_start_acc', 'fy_non_start_plan',
         'disb_igl_acc', 'disb_igl_amt',
+        'disb_fig_acc', 'disb_fig_amt',
         'disb_il_acc', 'disb_il_amt',
-        'kyc_fig_igl', 'kyc_il', 'kyc_npa'
+        'kyc_igl', 'kyc_fig', 'kyc_il'
     ];
 
     // Reset any error styling from previous attempts
@@ -5382,14 +5436,14 @@ function renderNPAMovement(activation, closure) {
 function renderPortfolioDonut(data, container) {
     if (!container) return;
 
-    const total = (data.healthy || 0) + (data.slipped || 0) + (data.npa || 0);
+    const total = (data.healthy || 0) + (data.dpd130 || 0) + (data.dpd3160 || 0) + (data.dpd6190 || 0);
     if (total === 0) {
         container.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No data available</div>';
         return;
     }
 
-    const colors = { healthy: '#10B981', slipped: '#F59E0B', npa: '#EF4444' };
-    const labels = { healthy: 'Healthy', slipped: 'Slipped', npa: 'NPA' };
+    const colors = { healthy: '#10B981', dpd130: '#F59E0B', dpd3160: '#FB923C', dpd6190: '#EF4444' };
+    const labels = { healthy: 'Healthy', dpd130: '1-30 DPD', dpd3160: '31-60 DPD', dpd6190: '61-90 DPD' };
 
     let currentAngle = 0;
     const slices = Object.entries(data).map(([key, val]) => {
@@ -5529,11 +5583,12 @@ function calculateBranchAveragePercentage(branchName) {
 
     // All fields that have target/achievement pairs
     const fields = [
-        'ftod_actual', 'ftod_plan', 'nov_25_Slipped_Accounts_Actual', 'nov_25_Slipped_Accounts_Plan',
-        'pnpa_actual', 'pnpa_plan', 'npa_activation', 'npa_closure',
-        'fy_od_acc', 'fy_od_plan', 'fy_non_start_acc', 'fy_non_start_plan',
-        'disb_igl_acc', 'disb_igl_amt',
-        'disb_il_acc', 'disb_il_amt', 'kyc_fig_igl', 'kyc_il', 'kyc_npa'
+        'ftod_actual', 'ftod_plan', 'dpd_1_30_actual', 'dpd_1_30_plan',
+        'dpd_31_60_actual', 'dpd_31_60_plan', 'dpd_61_90_actual', 'dpd_61_90_plan',
+        'npa_activation', 'npa_closure',
+        'fy_non_start_acc', 'fy_non_start_plan',
+        'disb_igl_acc', 'disb_igl_amt', 'disb_fig_acc', 'disb_fig_amt',
+        'disb_il_acc', 'disb_il_amt', 'kyc_igl', 'kyc_fig', 'kyc_il'
     ];
 
     let validPercentages = [];
@@ -5636,26 +5691,29 @@ function calculateCEOStats() {
 
     // Collection Metrics
     let ftodPlan = 0, ftodAchieve = 0;
-    let livedPlan = 0, livedAchieve = 0;
-    let pnpaPlan = 0, pnpaAchieve = 0;
+    let dpd130Plan = 0, dpd130Achieve = 0;
+    let dpd3160Plan = 0, dpd3160Achieve = 0;
+    let dpd6190Plan = 0, dpd6190Achieve = 0;
     let npaActivation = 0, npaClosure = 0; // Actuals
     let npaActivationPlan = 0, npaClosurePlan = 0; // Plans
 
     // Disbursement
     let disbIglAccPlan = 0, disbIglAmtPlan = 0; // Plans from daily_reports
+    let disbFigAccPlan = 0, disbFigAmtPlan = 0;
     let disbIlAccPlan = 0, disbIlAmtPlan = 0;
 
     let disbIglAccAchieve = 0, disbIglAmtAchieve = 0; // Actuals from daily_reports_achievements
+    let disbFigAccAchieve = 0, disbFigAmtAchieve = 0;
     let disbIlAccAchieve = 0, disbIlAmtAchieve = 0;
 
     let disbSancAcc = 0, disbSancAmt = 0; // Sanction Pending (if applicable)
 
     // KYC
-    let kycFigIgl = 0, kycIl = 0, kycNpa = 0; // Actuals
-    let kycFigIglPlan = 0, kycIlPlan = 0, kycNpaPlan = 0; // Plans
+    let kycIgl = 0, kycFig = 0, kycIl = 0; // Actuals
+    let kycIglPlan = 0, kycFigPlan = 0, kycIlPlan = 0; // Plans
 
     // Portfolio Health
-    let portfolioHealth = { healthy: 0, slipped: 0, npa: 0 };
+    let portfolioHealth = { healthy: 0, dpd130: 0, dpd3160: 0, dpd6190: 0 };
 
     // Regional breakdown
     let regionStats = {};
@@ -5693,21 +5751,24 @@ function calculateCEOStats() {
             if (hasPlan) {
                 const t = branchEntry.target;
                 ftodPlan += safeInt(t.ftod_plan);
-                livedPlan += safeInt(t.nov_25_Slipped_Accounts_Plan);
-                pnpaPlan += safeInt(t.pnpa_plan);
+                dpd130Plan += safeInt(t.dpd_1_30_plan);
+                dpd3160Plan += safeInt(t.dpd_31_60_plan);
+                dpd6190Plan += safeInt(t.dpd_61_90_plan);
                 npaActivationPlan += safeInt(t.npa_activation);
                 npaClosurePlan += safeInt(t.npa_closure);
 
                 // Disbursement Plans (from daily_reports)
                 disbIglAccPlan += safeInt(t.disb_igl_acc);
                 disbIglAmtPlan += safeFloat(t.disb_igl_amt);
+                disbFigAccPlan += safeInt(t.disb_fig_acc);
+                disbFigAmtPlan += safeFloat(t.disb_fig_amt);
                 disbIlAccPlan += safeInt(t.disb_il_acc);
                 disbIlAmtPlan += safeFloat(t.disb_il_amt);
 
                 // KYC Plans
-                kycFigIglPlan += safeInt(t.kyc_fig_igl);
+                kycIglPlan += safeInt(t.kyc_igl);
+                kycFigPlan += safeInt(t.kyc_fig);
                 kycIlPlan += safeInt(t.kyc_il);
-                kycNpaPlan += safeInt(t.kyc_npa);
             }
 
             // --- AGGREGATE ACHIEVEMENT DATA ---
@@ -5715,26 +5776,30 @@ function calculateCEOStats() {
                 const a = branchEntry.achievement;
 
                 ftodAchieve += safeInt(a.ftod_actual);
-                livedAchieve += safeInt(a.nov_25_Slipped_Accounts_Actual);
-                pnpaAchieve += safeInt(a.pnpa_actual);
+                dpd130Achieve += safeInt(a.dpd_1_30_actual);
+                dpd3160Achieve += safeInt(a.dpd_31_60_actual);
+                dpd6190Achieve += safeInt(a.dpd_61_90_actual);
                 npaActivation += safeInt(a.npa_activation);
                 npaClosure += safeInt(a.npa_closure);
 
                 // Disbursement Actuals
                 disbIglAccAchieve += safeInt(a.disb_igl_acc);
                 disbIglAmtAchieve += safeFloat(a.disb_igl_amt);
+                disbFigAccAchieve += safeInt(a.disb_fig_acc);
+                disbFigAmtAchieve += safeFloat(a.disb_fig_amt);
                 disbIlAccAchieve += safeInt(a.disb_il_acc);
                 disbIlAmtAchieve += safeFloat(a.disb_il_amt);
 
                 // KYC
-                kycFigIgl += safeInt(a.kyc_fig_igl);
+                kycIgl += safeInt(a.kyc_igl);
+                kycFig += safeInt(a.kyc_fig);
                 kycIl += safeInt(a.kyc_il);
-                kycNpa += safeInt(a.kyc_npa);
 
                 // Portfolio Health (Actuals)
                 portfolioHealth.healthy += safeInt(a.ftod_actual);
-                portfolioHealth.slipped += safeInt(a.nov_25_Slipped_Accounts_Actual);
-                portfolioHealth.npa += safeInt(a.pnpa_actual);
+                portfolioHealth.dpd130 += safeInt(a.dpd_1_30_actual);
+                portfolioHealth.dpd3160 += safeInt(a.dpd_31_60_actual);
+                portfolioHealth.dpd6190 += safeInt(a.dpd_61_90_actual);
             }
 
             // --- CALCULATE PERCENTAGES (Only if both exist) ---
@@ -5768,21 +5833,21 @@ function calculateCEOStats() {
         ? Math.round(allAchievementPcts.reduce((a, b) => a + b, 0) / allAchievementPcts.length)
         : 0;
 
-    const totalCollectionPlan = ftodPlan + livedPlan + pnpaPlan;
+    const totalCollectionPlan = ftodPlan + dpd130Plan + dpd3160Plan + dpd6190Plan;
 
     // NPA Totals
     const npaTotalPlan = npaActivationPlan + npaClosurePlan;
 
     // Disbursement Totals
-    const totalDisbursementPlan = disbIglAmtPlan + disbIlAmtPlan;
-    const totalDisbursementAchieve = disbIglAmtAchieve + disbIlAmtAchieve;
+    const totalDisbursementPlan = disbIglAmtPlan + disbFigAmtPlan + disbIlAmtPlan;
+    const totalDisbursementAchieve = disbIglAmtAchieve + disbFigAmtAchieve + disbIlAmtAchieve;
 
     // Total Disbursement Accounts
-    const totalDisbAccPlan = disbIglAccPlan + disbIlAccPlan;
-    const totalDisbAccAchieve = disbIglAccAchieve + disbIlAccAchieve;
+    const totalDisbAccPlan = disbIglAccPlan + disbFigAccPlan + disbIlAccPlan;
+    const totalDisbAccAchieve = disbIglAccAchieve + disbFigAccAchieve + disbIlAccAchieve;
 
     // KYC Total (Plan)
-    const kycTotal = kycFigIglPlan + kycIlPlan + kycNpaPlan;
+    const kycTotal = kycIglPlan + kycFigPlan + kycIlPlan;
 
     return {
         totalBranches,
@@ -5796,8 +5861,9 @@ function calculateCEOStats() {
 
         // Collection
         ftodPlan, ftodAchieve,
-        livedPlan, livedAchieve,
-        pnpaPlan, pnpaAchieve,
+        dpd130Plan, dpd130Achieve,
+        dpd3160Plan, dpd3160Achieve,
+        dpd6190Plan, dpd6190Achieve,
         npaActivation, npaClosure,
         npaActivationPlan, npaClosurePlan,
         npaTotalPlan,
@@ -5806,13 +5872,15 @@ function calculateCEOStats() {
         totalDisbursementPlan, totalDisbursementAchieve,
         totalDisbAccPlan, totalDisbAccAchieve,
         disbIglAccPlan, disbIglAmtPlan,
+        disbFigAccPlan, disbFigAmtPlan,
         disbIlAccPlan, disbIlAmtPlan,
         disbIglAccAchieve, disbIglAmtAchieve,
+        disbFigAccAchieve, disbFigAmtAchieve,
         disbIlAccAchieve, disbIlAmtAchieve,
 
         // KYC
-        kycFigIgl, kycIl, kycNpa, kycTotal,
-        kycFigIglPlan, kycIlPlan, kycNpaPlan,
+        kycIgl, kycFig, kycIl, kycTotal,
+        kycIglPlan, kycFigPlan, kycIlPlan,
 
         // Portfolio
         portfolioHealth,
@@ -5847,14 +5915,16 @@ function openDetailModal(type, data = null) {
         'completion': { icon: '✅', title: 'Completion Rate Analysis', subtitle: 'Branch-wise completion status' },
         'branches': { icon: '🏢', title: 'Active Branches', subtitle: 'All branches by region' },
         'achievement': { icon: '📈', title: 'Achievement Analysis', subtitle: 'Performance ranking' },
-        'collection': { icon: '💰', title: 'Collection Plan Breakdown', subtitle: 'FTOD + Slipped + PNPA' },
+        'collection': { icon: '💰', title: 'Collection Plan Breakdown', subtitle: 'FTOD + 1-30 + 31-60 + 61-90 DPD' },
         'ftod': { icon: '🎯', title: 'FTOD Collection Details', subtitle: 'First Time Overdue' },
-        'slipped': { icon: '⚠️', title: getSlippedLabel(state.systemDate), subtitle: 'Lived/Slipped accounts' },
-        'pnpa': { icon: '📊', title: 'PNPA Details', subtitle: 'Potential NPA accounts' },
+        'dpd_1_30': { icon: '⚠️', title: '1-30 DPD Details', subtitle: '1-30 Days Past Due accounts' },
+        'dpd_31_60': { icon: '⚠️', title: '31-60 DPD Details', subtitle: '31-60 Days Past Due accounts' },
+        'dpd_61_90': { icon: '📊', title: '61-90 DPD Details', subtitle: '61-90 Days Past Due accounts' },
         'npa': { icon: '🔴', title: 'NPA Movement Details', subtitle: 'Activation vs Closure' },
         'portfolio': { icon: '📉', title: 'Portfolio Health Details', subtitle: 'Account distribution' },
         'disbursement': { icon: '💳', title: 'Disbursement Details', subtitle: 'Product-wise breakdown' },
-        'disb_igl': { icon: '🌱', title: 'IGL & FIG Details', subtitle: 'Individual/Group loans' },
+        'disb_igl': { icon: '🌱', title: 'IGL Details', subtitle: 'Individual Group loans' },
+        'disb_fig': { icon: '🌾', title: 'FIG Details', subtitle: 'Financial Inclusion Group loans' },
         'disb_il': { icon: '🏠', title: 'IL Details', subtitle: 'Individual loans' },
         'region': { icon: '🌍', title: `Region: ${data || 'All'}`, subtitle: 'Regional performance' },
         'pending': { icon: '⏳', title: 'Pending Achievement', subtitle: 'Branches with only targets' },
@@ -6258,13 +6328,15 @@ function renderDetailContent(type, data) {
         case 'achievement': return renderAchievementDetail(stats);
         case 'collection': return renderCollectionDetail(stats);
         case 'ftod': return renderMetricDetail('ftod', stats);
-        case 'slipped': return renderMetricDetail('slipped', stats);
-        case 'pnpa': return renderMetricDetail('pnpa', stats);
+        case 'dpd_1_30': return renderMetricDetail('dpd_1_30', stats);
+        case 'dpd_31_60': return renderMetricDetail('dpd_31_60', stats);
+        case 'dpd_61_90': return renderMetricDetail('dpd_61_90', stats);
         case 'npa': return renderMetricDetail('npa', stats);
         case 'portfolio': return renderPortfolioDetailView(data, stats);
         case 'disbursement': return renderDisbursementDetailView(stats);
         case 'disb_sanction': return renderDisbProductDetail('sanction', stats);
         case 'disb_igl': return renderDisbProductDetail('igl', stats);
+        case 'disb_fig': return renderDisbProductDetail('fig', stats);
         case 'disb_il': return renderDisbProductDetail('il', stats);
         case 'region': return renderRegionDetailView(data, stats);
         case 'pending': return renderInsightDetail('pending', stats);
@@ -6459,34 +6531,40 @@ function renderCollectionDetail(stats) {
                     <div class="detail-stat-card clickable-section" onclick="openDetailModal('ftod')">
                         <div class="detail-stat-value" style="color:#6366F1;">₹${(stats.ftodPlan / 100000).toFixed(1)}L</div>
                         <div class="detail-stat-label">FTOD Plan</div>
-                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details →</div>
+                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details</div>
                     </div>
-                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('slipped')">
-                        <div class="detail-stat-value" style="color:#F59E0B;">₹${(stats.livedPlan / 100000).toFixed(1)}L</div>
-                        <div class="detail-stat-label">Slipped Plan</div>
-                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details →</div>
+                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('dpd_1_30')">
+                        <div class="detail-stat-value" style="color:#F59E0B;">₹${(stats.dpd130Plan / 100000).toFixed(1)}L</div>
+                        <div class="detail-stat-label">1-30 DPD Plan</div>
+                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details</div>
                     </div>
-                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('pnpa')">
-                        <div class="detail-stat-value" style="color:#EF4444;">₹${(stats.pnpaPlan / 100000).toFixed(1)}L</div>
-                        <div class="detail-stat-label">PNPA Plan</div>
-                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details →</div>
+                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('dpd_31_60')">
+                        <div class="detail-stat-value" style="color:#FB923C;">₹${(stats.dpd3160Plan / 100000).toFixed(1)}L</div>
+                        <div class="detail-stat-label">31-60 DPD Plan</div>
+                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details</div>
+                    </div>
+                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('dpd_61_90')">
+                        <div class="detail-stat-value" style="color:#EF4444;">₹${(stats.dpd6190Plan / 100000).toFixed(1)}L</div>
+                        <div class="detail-stat-label">61-90 DPD Plan</div>
+                        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Click for details</div>
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-value" style="color:var(--primary-accent);">₹${(stats.totalCollectionPlan / 100000).toFixed(1)}L</div>
                         <div class="detail-stat-label">Total Plan</div>
                     </div>
                 </div>
-                
+
                 ${renderMetricBranchTable('collection', stats)}
             `;
 }
 
-// --- Single Metric Detail (FTOD, Slipped, PNPA, NPA) ---
+// --- Single Metric Detail (FTOD, DPD buckets, NPA) ---
 function renderMetricDetail(metricType, stats) {
     const config = {
         'ftod': { label: 'FTOD', targetField: 'ftod_plan', achieveField: 'ftod_actual', target: stats.ftodPlan, achieve: stats.ftodAchieve },
-        'slipped': { label: getSlippedLabel(state.systemDate), targetField: 'nov_25_Slipped_Accounts_Plan', achieveField: 'nov_25_Slipped_Accounts_Actual', target: stats.livedPlan, achieve: stats.livedAchieve },
-        'pnpa': { label: 'PNPA', targetField: 'pnpa_plan', achieveField: 'pnpa_actual', target: stats.pnpaPlan, achieve: stats.pnpaAchieve },
+        'dpd_1_30': { label: '1-30 DPD', targetField: 'dpd_1_30_plan', achieveField: 'dpd_1_30_actual', target: stats.dpd130Plan, achieve: stats.dpd130Achieve },
+        'dpd_31_60': { label: '31-60 DPD', targetField: 'dpd_31_60_plan', achieveField: 'dpd_31_60_actual', target: stats.dpd3160Plan, achieve: stats.dpd3160Achieve },
+        'dpd_61_90': { label: '61-90 DPD', targetField: 'dpd_61_90_plan', achieveField: 'dpd_61_90_actual', target: stats.dpd6190Plan, achieve: stats.dpd6190Achieve },
         'npa': { label: 'NPA Movement', targetField: null, achieveField: null, activation: stats.npaActivation, closure: stats.npaClosure }
     };
 
@@ -6578,7 +6656,7 @@ function renderNPADetail(stats) {
 // --- Portfolio Detail View ---
 function renderPortfolioDetailView(category, stats) {
     const portfolioData = getPortfolioBreakdown();
-    const total = stats.portfolioHealth.healthy + stats.portfolioHealth.slipped + stats.portfolioHealth.npa;
+    const total = stats.portfolioHealth.healthy + stats.portfolioHealth.dpd130 + stats.portfolioHealth.dpd3160 + stats.portfolioHealth.dpd6190;
 
     return `
                 <div class="detail-summary-row">
@@ -6587,41 +6665,48 @@ function renderPortfolioDetailView(category, stats) {
                         <div class="detail-stat-label">Healthy (FTOD)</div>
                     </div>
                     <div class="detail-stat-card">
-                        <div class="detail-stat-value" style="color:#F59E0B;">${stats.portfolioHealth.slipped}</div>
-                        <div class="detail-stat-label">Slipped</div>
+                        <div class="detail-stat-value" style="color:#F59E0B;">${stats.portfolioHealth.dpd130}</div>
+                        <div class="detail-stat-label">1-30 DPD</div>
                     </div>
                     <div class="detail-stat-card">
-                        <div class="detail-stat-value" style="color:#EF4444;">${stats.portfolioHealth.npa}</div>
-                        <div class="detail-stat-label">PNPA</div>
+                        <div class="detail-stat-value" style="color:#FB923C;">${stats.portfolioHealth.dpd3160}</div>
+                        <div class="detail-stat-label">31-60 DPD</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-value" style="color:#EF4444;">${stats.portfolioHealth.dpd6190}</div>
+                        <div class="detail-stat-label">61-90 DPD</div>
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-value">${total}</div>
                         <div class="detail-stat-label">Total Accounts</div>
                     </div>
                 </div>
-                
+
                 <div class="detail-filter-bar">
                     <button class="detail-filter-btn active" onclick="filterPortfolio('all')">All</button>
                     <button class="detail-filter-btn" onclick="filterPortfolio('healthy')" style="border-color:#10B981; color:#10B981;">Healthy</button>
-                    <button class="detail-filter-btn" onclick="filterPortfolio('slipped')" style="border-color:#F59E0B; color:#F59E0B;">Slipped</button>
-                    <button class="detail-filter-btn" onclick="filterPortfolio('npa')" style="border-color:#EF4444; color:#EF4444;">PNPA</button>
+                    <button class="detail-filter-btn" onclick="filterPortfolio('dpd130')" style="border-color:#F59E0B; color:#F59E0B;">1-30 DPD</button>
+                    <button class="detail-filter-btn" onclick="filterPortfolio('dpd3160')" style="border-color:#FB923C; color:#FB923C;">31-60 DPD</button>
+                    <button class="detail-filter-btn" onclick="filterPortfolio('dpd6190')" style="border-color:#EF4444; color:#EF4444;">61-90 DPD</button>
                 </div>
-                
+
                 <div class="detail-branch-list">
-                    <div class="detail-branch-header" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
+                    <div class="detail-branch-header" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;">
                         <div>Branch</div>
                         <div>Region</div>
                         <div style="color:#10B981;">Healthy</div>
-                        <div style="color:#F59E0B;">Slipped</div>
-                        <div style="color:#EF4444;">PNPA</div>
+                        <div style="color:#F59E0B;">1-30 DPD</div>
+                        <div style="color:#FB923C;">31-60 DPD</div>
+                        <div style="color:#EF4444;">61-90 DPD</div>
                     </div>
                     ${portfolioData.map(b => `
-                        <div class="detail-branch-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
+                        <div class="detail-branch-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;">
                             <div class="detail-branch-name">${b.name}</div>
                             <div>${b.region}</div>
                             <div style="font-weight:600; color:#10B981;">${b.healthy}</div>
-                            <div style="font-weight:600; color:#F59E0B;">${b.slipped}</div>
-                            <div style="font-weight:600; color:#EF4444;">${b.pnpa}</div>
+                            <div style="font-weight:600; color:#F59E0B;">${b.dpd130}</div>
+                            <div style="font-weight:600; color:#FB923C;">${b.dpd3160}</div>
+                            <div style="font-weight:600; color:#EF4444;">${b.dpd6190}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -6633,21 +6718,26 @@ function renderDisbursementDetailView(stats) {
     return `
                 <div class="detail-summary-row">
                     <div class="detail-stat-card clickable-section" onclick="openDetailModal('disb_igl')">
-                        <div class="detail-stat-value" style="color:#10B981;">${stats.disbIglAcc}</div>
-                        <div class="detail-stat-label">IGL & FIG</div>
-                        <div style="font-size:12px; color:var(--text-secondary);">Amt ${(stats.disbIglAmt / 100000).toFixed(1)}L</div>
+                        <div class="detail-stat-value" style="color:#10B981;">${stats.disbIglAccAchieve}</div>
+                        <div class="detail-stat-label">IGL</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">Amt ${(stats.disbIglAmtAchieve / 100000).toFixed(1)}L</div>
+                    </div>
+                    <div class="detail-stat-card clickable-section" onclick="openDetailModal('disb_fig')">
+                        <div class="detail-stat-value" style="color:#6366F1;">${stats.disbFigAccAchieve}</div>
+                        <div class="detail-stat-label">FIG</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">Amt ${(stats.disbFigAmtAchieve / 100000).toFixed(1)}L</div>
                     </div>
                     <div class="detail-stat-card clickable-section" onclick="openDetailModal('disb_il')">
-                        <div class="detail-stat-value" style="color:#F59E0B;">${stats.disbIlAcc}</div>
+                        <div class="detail-stat-value" style="color:#F59E0B;">${stats.disbIlAccAchieve}</div>
                         <div class="detail-stat-label">IL</div>
-                        <div style="font-size:12px; color:var(--text-secondary);">Amt ${(stats.disbIlAmt / 100000).toFixed(1)}L</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">Amt ${(stats.disbIlAmtAchieve / 100000).toFixed(1)}L</div>
                     </div>
                     <div class="detail-stat-card">
-                        <div class="detail-stat-value" style="color:var(--primary-accent);">Amt ${(stats.totalDisbursement / 10000000).toFixed(2)}Cr</div>
+                        <div class="detail-stat-value" style="color:var(--primary-accent);">Amt ${(stats.totalDisbursementAchieve / 10000000).toFixed(2)}Cr</div>
                         <div class="detail-stat-label">Total Disbursement</div>
                     </div>
                 </div>
-                
+
                 ${renderDisbursementBranchTable(stats)}
             `;
 }
@@ -6655,7 +6745,8 @@ function renderDisbursementDetailView(stats) {
 // --- Disbursement Product Detail ---
 function renderDisbProductDetail(product, stats) {
     const config = {
-        'igl': { accField: 'disb_igl_acc', amtField: 'disb_igl_amt', label: 'IGL & FIG' },
+        'igl': { accField: 'disb_igl_acc', amtField: 'disb_igl_amt', label: 'IGL' },
+        'fig': { accField: 'disb_fig_acc', amtField: 'disb_fig_amt', label: 'FIG' },
         'il': { accField: 'disb_il_acc', amtField: 'disb_il_amt', label: 'IL' }
     };
 
@@ -6798,38 +6889,38 @@ function renderKYCDetail(stats) {
     return `
                 <div class="detail-summary-row">
                     <div class="detail-stat-card">
-                        <div class="detail-stat-value" style="color:#6366F1;">${stats.kycFigIgl}</div>
-                        <div class="detail-stat-label">FIG & IGL</div>
+                        <div class="detail-stat-value" style="color:#6366F1;">${stats.kycIgl}</div>
+                        <div class="detail-stat-label">IGL</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-value" style="color:#10B981;">${stats.kycFig}</div>
+                        <div class="detail-stat-label">FIG</div>
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-value" style="color:#F59E0B;">${stats.kycIl}</div>
                         <div class="detail-stat-label">IL</div>
                     </div>
                     <div class="detail-stat-card">
-                        <div class="detail-stat-value" style="color:#10B981;">${stats.kycNpa}</div>
-                        <div class="detail-stat-label">FOR NPA</div>
-                    </div>
-                    <div class="detail-stat-card">
                         <div class="detail-stat-value">${stats.kycTotal}</div>
                         <div class="detail-stat-label">Total KYC</div>
                     </div>
                 </div>
-                
+
                 <div class="detail-branch-list">
                     <div class="detail-branch-header" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
                         <div>Branch</div>
                         <div>Region</div>
-                        <div style="color:#6366F1;">FIG/IGL</div>
+                        <div style="color:#6366F1;">IGL</div>
+                        <div style="color:#10B981;">FIG</div>
                         <div style="color:#F59E0B;">IL</div>
-                        <div style="color:#10B981;">FOR NPA</div>
                     </div>
                     ${kycData.map(b => `
                         <div class="detail-branch-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
                             <div class="detail-branch-name">${b.name}</div>
                             <div>${b.region}</div>
-                            <div style="font-weight:600; color:#6366F1;">${b.figIgl}</div>
+                            <div style="font-weight:600; color:#6366F1;">${b.igl}</div>
+                            <div style="font-weight:600; color:#10B981;">${b.fig}</div>
                             <div style="font-weight:600; color:#F59E0B;">${b.il}</div>
-                            <div style="font-weight:600; color:#10B981;">${b.npa}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -6973,8 +7064,9 @@ function getPortfolioBreakdown() {
                 name,
                 region,
                 healthy: parseInt(entry.achievement.ftod_actual) || 0,
-                slipped: parseInt(entry.achievement.nov_25_Slipped_Accounts_Actual) || 0,
-                pnpa: parseInt(entry.achievement.pnpa_actual) || 0
+                dpd130: parseInt(entry.achievement.dpd_1_30_actual) || 0,
+                dpd3160: parseInt(entry.achievement.dpd_31_60_actual) || 0,
+                dpd6190: parseInt(entry.achievement.dpd_61_90_actual) || 0
             });
         }
     });
@@ -7025,9 +7117,9 @@ function getKYCBreakdown() {
             data.push({
                 name,
                 region,
-                figIgl: parseInt(entry.achievement.kyc_fig_igl) || 0,
-                il: parseInt(entry.achievement.kyc_il) || 0,
-                npa: parseInt(entry.achievement.kyc_npa) || 0
+                igl: parseInt(entry.achievement.kyc_igl) || 0,
+                fig: parseInt(entry.achievement.kyc_fig) || 0,
+                il: parseInt(entry.achievement.kyc_il) || 0
             });
         }
     });
@@ -7038,8 +7130,9 @@ function getKYCBreakdown() {
 function renderMetricBranchTable(metricType, stats) {
     const config = {
         'ftod': { targetField: 'ftod_plan', achieveField: 'ftod_actual', label: 'FTOD' },
-        'slipped': { targetField: 'nov_25_Slipped_Accounts_Plan', achieveField: 'nov_25_Slipped_Accounts_Actual', label: getSlippedLabel(state.systemDate) },
-        'pnpa': { targetField: 'pnpa_plan', achieveField: 'pnpa_actual', label: 'PNPA' },
+        'dpd_1_30': { targetField: 'dpd_1_30_plan', achieveField: 'dpd_1_30_actual', label: '1-30 DPD' },
+        'dpd_31_60': { targetField: 'dpd_31_60_plan', achieveField: 'dpd_31_60_actual', label: '31-60 DPD' },
+        'dpd_61_90': { targetField: 'dpd_61_90_plan', achieveField: 'dpd_61_90_actual', label: '61-90 DPD' },
         'collection': { targetField: null, achieveField: null, label: 'All' }
     };
 
@@ -7060,8 +7153,8 @@ function renderMetricBranchTable(metricType, stats) {
                 target = parseInt(entry.target[cfg.targetField]) || 0;
                 achieve = parseInt(entry.achievement[cfg.achieveField]) || 0;
             } else {
-                target = (parseInt(entry.target.ftod_plan) || 0) + (parseInt(entry.target.nov_25_Slipped_Accounts_Plan) || 0) + (parseInt(entry.target.pnpa_plan) || 0);
-                achieve = (parseInt(entry.achievement.ftod_actual) || 0) + (parseInt(entry.achievement.nov_25_Slipped_Accounts_Actual) || 0) + (parseInt(entry.achievement.pnpa_actual) || 0);
+                target = (parseInt(entry.target.ftod_plan) || 0) + (parseInt(entry.target.dpd_1_30_plan) || 0) + (parseInt(entry.target.dpd_31_60_plan) || 0) + (parseInt(entry.target.dpd_61_90_plan) || 0);
+                achieve = (parseInt(entry.achievement.ftod_actual) || 0) + (parseInt(entry.achievement.dpd_1_30_actual) || 0) + (parseInt(entry.achievement.dpd_31_60_actual) || 0) + (parseInt(entry.achievement.dpd_61_90_actual) || 0);
             }
 
             const pct = target > 0 ? Math.round((achieve / target) * 100) : 0;
@@ -7111,12 +7204,13 @@ function renderDisbursementBranchTable(stats) {
         const entry = state.branchDetails[name];
         if (entry && entry.achievement) {
             const a = entry.achievement;
-            const total = (parseInt(a.disb_igl_amt) || 0) + (parseInt(a.disb_il_amt) || 0);
+            const total = (parseInt(a.disb_igl_amt) || 0) + (parseInt(a.disb_fig_amt) || 0) + (parseInt(a.disb_il_amt) || 0);
             if (total > 0) {
                 data.push({
                     name,
                     region,
                     igl: (parseInt(a.disb_igl_amt) || 0),
+                    fig: (parseInt(a.disb_fig_amt) || 0),
                     il: (parseInt(a.disb_il_amt) || 0),
                     total
                 });
@@ -7128,19 +7222,21 @@ function renderDisbursementBranchTable(stats) {
 
     return `
                 <div class="detail-branch-list">
-                    <div class="detail-branch-header" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+                    <div class="detail-branch-header" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
                         <div>Branch</div>
                         <div>IGL (₹L)</div>
+                        <div>FIG (₹L)</div>
                         <div>IL (₹L)</div>
                         <div>Total (₹L)</div>
                     </div>
                     ${data.map(b => `
-                        <div class="detail-branch-row" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+                        <div class="detail-branch-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
                             <div>
                                 <div class="detail-branch-name">${b.name}</div>
                                 <div class="detail-branch-region">${b.region}</div>
                             </div>
                             <div>${(b.igl / 100000).toFixed(1)}</div>
+                            <div>${(b.fig / 100000).toFixed(1)}</div>
                             <div>${(b.il / 100000).toFixed(1)}</div>
                             <div style="font-weight:700; color:var(--primary-accent);">${(b.total / 100000).toFixed(1)}</div>
                         </div>
@@ -7174,9 +7270,9 @@ function filterPortfolio(filter) {
 function setupInputValidators() {
     const pairs = [
         { plan: 'ftod_plan', actual: 'ftod_actual', name: 'FTOD Collection Plan' },
-        { plan: 'nov_25_Slipped_Accounts_Plan', actual: 'nov_25_Slipped_Accounts_Actual', name: 'Slipped Collection Plan' },
-        { plan: 'pnpa_plan', actual: 'pnpa_actual', name: 'PNPA Collection Plan' },
-        { plan: 'fy_od_plan', actual: 'fy_od_acc', name: 'OD Collection Plan' },
+        { plan: 'dpd_1_30_plan', actual: 'dpd_1_30_actual', name: '1-30 DPD Collection Plan' },
+        { plan: 'dpd_31_60_plan', actual: 'dpd_31_60_actual', name: '31-60 DPD Collection Plan' },
+        { plan: 'dpd_61_90_plan', actual: 'dpd_61_90_actual', name: '61-90 DPD Collection Plan' },
         { plan: 'fy_non_start_plan', actual: 'fy_non_start_acc', name: 'Non-Starter Collection Plan' }
     ];
 
