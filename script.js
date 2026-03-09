@@ -12,14 +12,30 @@ if ('serviceWorker' in navigator) {
 const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_xSQzvTLo3kU2@ep-dry-block-a13q0qk6-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
 
 let _neonSql = null;
+const NEON_MAX_RETRIES = 3;
+const NEON_RETRY_DELAY_MS = 2000;
+
 async function neonQuery(sqlText, params = []) {
     if (!_neonSql) {
         const { neon } = await import('https://esm.sh/@neondatabase/serverless');
         _neonSql = neon(NEON_CONN_STRING);
     }
-    // Use .query() for conventional parameterized SQL ($1, $2, ...)
-    const rows = await _neonSql.query(sqlText, params);
-    return { data: Array.isArray(rows) ? rows : [], error: null, count: Array.isArray(rows) ? rows.length : 0 };
+    let lastError;
+    for (let attempt = 1; attempt <= NEON_MAX_RETRIES; attempt++) {
+        try {
+            const rows = await _neonSql.query(sqlText, params);
+            return { data: Array.isArray(rows) ? rows : [], error: null, count: Array.isArray(rows) ? rows.length : 0 };
+        } catch (err) {
+            lastError = err;
+            const isRetryable = !err.message?.includes('syntax') && !err.message?.includes('relation') && !err.message?.includes('column');
+            if (attempt < NEON_MAX_RETRIES && isRetryable) {
+                console.warn(`Neon query attempt ${attempt}/${NEON_MAX_RETRIES} failed, retrying in ${NEON_RETRY_DELAY_MS}ms...`, err.message);
+                await new Promise(r => setTimeout(r, NEON_RETRY_DELAY_MS));
+            }
+        }
+    }
+    console.error('Neon query failed after all retries:', lastError);
+    throw lastError;
 }
 
 // --- DATA CACHE (show last data instantly while fresh data loads) ---
